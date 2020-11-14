@@ -4,10 +4,10 @@ Created on Tue Jun 16 12:47:15 2020
 
 @author: chris
 """
-from tkinter import *
+from tkinter import Tk, Frame, DoubleVar, StringVar, IntVar, Checkbutton, Spinbox, messagebox, filedialog
 from tkinter.ttk import Button, Entry, Label, OptionMenu
 import os, math
-from util import var_mul, binary_search_find_nearest, binary_search_buried
+from util import var_mul, binary_search_find_nearest, binary_search_buried, get_peak_types
 from itertools import chain, groupby
 import matplotlib
 matplotlib.use("TkAgg")
@@ -31,21 +31,15 @@ class ReviewFitPage(Frame):
         Label(self, text="Right Bound:").grid(row=1,column=7)
         peakSelectorButton =  Button(self, text="Manually Choose Element", command=self.send_to_mes)
         peakSelectorButton.grid(row=5,column=6)
-        integrateButton = Button(self, text="Manually Integrate and Choose Element", command = self.send_to_mi)
-        integrateButton.grid(row=5,column=7)
-        acceptButton = Button(self, text="Fit looks good, let the program continue", command=self.submit)
-        acceptButton.grid(row=6,column=6)
-        ignoreButton = Button(self, text="Ignore this data")
+        ignoreButton = Button(self, text="Ignore this data", command = lambda:self.controller.peakCounter.set(self.controller.peakCounter.get()+1))
         ignoreButton.grid(row=6,column=7)
         self.KnownPeaksFrame = Frame(self)
-        Label(self.KnownPeaksFrame, text="Peak Information (Center, Amplitude, Width)").grid(row=0, column=0, columnspan=2)
-        self.newPeakEntry = Entry(self.KnownPeaksFrame)
-        self.newPeakEntry.grid(row=1,column=0)
-        Button(self.KnownPeaksFrame, text="Add", command=lambda:self.add_peak(float(self.newPeakEntry.get()))).grid(row=1,column=1)
+        Label(self.KnownPeaksFrame, text="Peak Information").grid(row=0, column=0, columnspan=2)
+        
+        Button(self.KnownPeaksFrame, text="Add", command=self.add_peak).grid(row=1,column=1)
+        
         self.KnownPeaksFrame.grid(row=3,column=6, columnspan=2)
         Button(self, text="Reanalyze", command=self.reanalyze).grid(row=4,column=6,columnspan=2)
-        self.energies = []
-        self.cps = []
         self.slope = 0
         self.intercept = 0
         self.ctrs = []
@@ -53,48 +47,36 @@ class ReviewFitPage(Frame):
         self.fill = None
         self.peakGUIList = []
         self.removeBtns = []
-    def populate_values(self, startInd, endInd, peaks, variances):
+    def populate_values(self, ROI):
+        self.ROI = ROI
         self.a.cla()
-        self.startInd = startInd
-        self.ctrs = np.array(peaks[2::3])
-        self.amps = np.array(peaks[3::3])
-        self.wids = np.array(peaks[4::3])
-        self.slope = peaks[0]
-        self.intercept = peaks[1]
-        poss = chain.from_iterable(self.get_possibilites(True))
-        poss = list(k for k,_ in groupby(poss))
-        self.peaks = list(peaks[2:])
-        self.energies = self.controller.file1Energies[startInd-20:endInd+21]
-        self.cps = self.controller.file1CPS[startInd-20:endInd+21]
-        self.variances = list(variances)
-        self.a.plot(self.energies, self.cps,"bo", label="Observed Data")
-        fitX = np.arange(self.energies[20],self.energies[-20],.01)
-        self.fitX = fitX
-        backgroundY = fitX * peaks[0] + np.array([peaks[1]]*len(fitX))
-        self.backgroundY = backgroundY
-        fitY = self.controller.multiple_gaussian_and_secant(fitX,*peaks)
-        self.a.plot(fitX, fitY, "r-", label = "Fit")
-        fullAmps = self.amps + (peaks[0] * self.ctrs + peaks[1]) 
-        self.peakPoints = self.a.plot(self.ctrs, fullAmps,"go",label="Found Peaks",picker=6)[0]
-        self.peakPoints.set_pickradius(10)
-        self.backgroundLine = self.a.plot(fitX,backgroundY,"k-", label = "Background")
-        self.a.set_xlim(self.energies[20],self.energies[-20])
+        peaks = ROI.get_peaks()
+        if len(peaks) > 0:
+            fitX = np.arange(ROI.range[0]-20, ROI.range[1] + 20, .01)
+            self.a.plot(fitX, ROI.get_fitted_curve(fitX), "r-", label = "Fit")
+            self.backgroundLine = self.a.plot(fitX,ROI.get_bg().get_ydata(fitX),"k-", label = "Background")
+            self.peakPoints = self.a.plot(self.ctrs, fullAmps,"go",label="Found Peaks",picker=6)[0]
+            self.peakPoints.set_pickradius(10)
+            self.f.canvas.mpl_connect('motion_notify_event', self.on_plot_hover)
+        self.a.plot(ROI.get_energies(), ROI.get_cps(),"bo", label="Observed Data")
+        self.a.set_xlim(ROI.range[0], ROI.range[1])
         self.canvas = FigureCanvasTkAgg(self.f, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=1,column=0,columnspan=6, rowspan=6)
-        for i in poss:
-            pass
         self.a.legend(loc='upper right', prop={'size': 8})
         toolbarFrame = Frame(self)
         toolbarFrame.grid(row=7,column=0,columnspan=6, sticky="w")
         toolbar = NavigationToolbar2Tk(self.canvas, toolbarFrame)
-        self.f.canvas.mpl_connect('motion_notify_event', self.on_plot_hover)
         self.spinboxLeftVal = DoubleVar()
         self.spinboxLeft = Spinbox(self, values=self.energies[:-20], command = self.update_right, textvariable = self.spinboxLeftVal)
+        self.spinboxLeft.bind("<Return>",lambda x:self.update_right())
+        self.spinboxLeft.bind("<FocusOut>",lambda x:self.update_right())
         self.spinboxLeftVal.set(self.energies[20])
         self.spinboxLeft.grid(row=2,column=6)
         self.spinboxRightVal = DoubleVar()
         self.spinboxRight = Spinbox(self, values = self.energies[21:], command = self.update_left, textvariable = self.spinboxRightVal)
+        self.spinboxRight.bind("<Return>",lambda x:self.update_left())
+        self.spinboxRight.bind("<FocusOut>",lambda x:self.update_left())
         self.spinboxRightVal.set(self.energies[-20])
         self.spinboxRight.grid(row=2,column=7)
         for i in self.peakGUIList:
@@ -103,164 +85,81 @@ class ReviewFitPage(Frame):
             i.destroy()
         self.peakGUIList = []
         self.removeBtns = []
-        for i in range(len(self.ctrs)):
-            self.peakGUIList.append(Label(self.KnownPeaksFrame, text="{:5f}, {:5f}, {:5f}".format(self.ctrs[i],self.amps[i],self.wids[i])))
+        peaks = self.ROI.get_peaks()
+        i=0
+        for p in peaks:
+            self.peakGUIList.append(Label(self.KnownPeaksFrame, text=("{:5f},"*p.get_num_params()-1+"{:5f}").format(*p.get_params())))
             self.removeBtns.append(Button(self.KnownPeaksFrame, text="Remove", command=lambda temp=i:self.remove_peak(temp)))
             self.peakGUIList[i].grid(row=i+2,column=0)
             self.removeBtns[i].grid(row=i+2,column=1)
+            i += 1
     def remove_peak(self, ind):
+        #TODO: Slide things up
+        self.ROI.remove_peak(self.peakGUIList[ind].cget("text").split(",")[0])
         self.peakGUIList[ind].destroy()
         del self.peakGUIList[ind]
         self.removeBtns[-1].destroy()
         del self.removeBtns[-1]
-    def add_peak(self, loc):
-        self.newPeakEntry.delete(0,"end")
-        self.newPeakEntry.insert(0,"")
-        i=0
-        while self.energies[i] < loc:
+        self.ROI.fit()
+    def add_peak_GUI(self):
+        win = Tk.Toplevel()
+        peakType = StringVar(self.controller)
+        OptionMenu(win, peakType, "Select Peak Type", get_peak_types().keys()).grid(row=0,column=0,columnspan=2)
+        peakType.trace("w",lambda:update_add_gui(win, peakType))
+    def update_add_gui(self, win, peakType):
+        peak = get_peak_types()[peakType.get()]
+        entry_fields = peak.get_entry_fields()
+        i = 1
+        entries = []
+        for e in entry_fields:
+            Label(win, text=e).grid(row=i,column=0)
+            tmp = StringVar(self.controller)
+            Entry(win, tmp).grid(row=i,column=1)
+            entries.append(tmp)
             i += 1
-        self.peakGUIList.append(Label(self.KnownPeaksFrame, text="{:5f}, {:5f}, 1.00".format(self.energies[i], self.cps[i])))
-        self.removeBtns.append(Button(self.KnownPeaksFrame, text="Remove", command=lambda temp=len(self.peakGUIList)-1:self.remove_peak(temp)))
-        self.peakGUIList[-1].grid(row=len(self.peakGUIList)+1, column=0)
-        self.removeBtns[-1].grid(row=len(self.peakGUIList)+1, column=1)
-    def on_plot_hover(self, e):
-        cont, ind = self.peakPoints.contains(e)
-        if cont and self.fill == None:
-            x = self.peakPoints.get_xdata()[ind["ind"][0]]
-            y = self.peakPoints.get_ydata()[ind["ind"][0]] - (self.slope * x + self.intercept)
-            self.fill = self.a.fill_between(self.fitX, self.backgroundY, self.backgroundY + self.controller.multiple_gaussian(self.fitX, x, y, self.wids[np.where(self.ctrs == x)[0][0]]), facecolor='red', alpha=0.5)
-            self.canvas.draw()
-        else:
-            if self.fill != None:
-                self.fill.remove()
-                self.fill = None
-                self.canvas.draw()
+        Button(text="Submit", command = lambda:add_peak(win, peak, entries))
+    def add_peak(self, win, peak, entry_fields):
+        peak.handle_entry([float(e.get()) for e in entries])
+        self.ROI.add_peak(peak)
+        self.peakGUIList.append(Label(self.KnownPeaksFrame, text=("{:5f},"*peak.get_num_params()-1+"{:5f}").format(*peak.get_params())))
+        self.removeBtns.append(Button(self.KnownPeaksFrame, text="Remove", command=lambda temp=i:self.remove_peak(temp)))
+        self.peakGUIList[-1].grid(row=len(self.peakGUIList)+1,column=0)
+        self.removeBtns[-1].grid(row=len(self.removeBtns)+1,column=1)
+        self.ROI.fit()
+        win.destroy()
+        
+        
     #TODO: add manual entry flag, and call it with a keybind from the spinboxes
     def update_left(self):
         temp = self.spinboxLeftVal.get()
         try:
             newRange = self.energies[:np.where(self.energies==self.spinboxRightVal.get())[0][0]]
         except IndexError:
-            newRange = self.energies[binary_search_find_nearest(self.energies, self.spinboxRightVal.get())]
+            newRange = self.energies[:binary_search_find_nearest(self.energies, self.spinboxRightVal.get())]
         self.spinboxLeft.configure(values=newRange)
         self.spinboxLeftVal.set(temp)
     def update_right(self):
         temp = self.spinboxRightVal.get()
+        if self.spinboxLeftVal.get() < self.energies[0]:
+            messagebox.showinfo("Out of Bounds","Please enter an X value within the currently plotted points")
+            self.spinboxLeftVal.set(self.energies[20])
+            return None
         try:
             newRange = self.energies[np.where(self.energies==self.spinboxLeftVal.get())[0][0]+1:]
         except IndexError:
-            newRange = self.energies[binary_search_find_nearest(self.energies, self.spinboxLeftVal.get())]
+            newRange = self.energies[binary_search_find_nearest(self.energies, self.spinboxLeftVal.get()):]
         self.spinboxRight.configure(values=newRange)
         self.spinboxRightVal.set(temp)
-    def reanalyze(self):
-        try:
-            lowIndex = np.where(self.energies==self.spinboxLeftVal.get())[0][0]
-            highIndex = np.where(self.energies==self.spinboxRightVal.get())[0][0] + 1
-        except IndexError:
-            lowIndex = binary_search_find_nearest(self.energies, self.spinboxLeftVal.get())
-            highIndex = binary_search_find_nearest(self.energies, self.spinboxRightVal.get())
-        guesses = [[float(j) for j in i.cget("text").split(", ")] for i in self.peakGUIList]
-        guesses = list(chain.from_iterable(guesses))
-        guesses = [self.slope, self.intercept] + guesses
-        popt, pcov = curve_fit(self.controller.multiple_gaussian_and_secant, xdata = self.energies[lowIndex:highIndex], ydata = self.cps[lowIndex:highIndex], p0 = np.array(guesses))
-        self.populate_values(self.startInd - 20 + lowIndex, self.startInd - 20 + highIndex, popt, np.diag(pcov)[2:])
-    
-    def get_possibilites(self, MP):
-        if MP:#Multiple peaks
-            return [self.controller.get_possibilites_list(c) for c in self.ctrs]
-        else:
-            return self.controller.get_possibilites_list((self.energies[20]+self.energies[-20])/2)
-    def send_to_mi(self):
-        cpsNoBgd = [j - (self.energies[i] * self.slope + self.intercept) for i,j in enumerate(self.cps)]
-        self.controller.show_frame(ManualIntegrationPage)
-        self.controller.frames[ManualIntegrationPage].populate_values(self.energies[20:-20], cpsNoBgd[20:-20])
-        self.controller.frames[ManualIntegrationPage].add_peak_selector(self.get_possibilites(False))
         
-    def send_to_mes(self):
-        cpsNoBgd = [j - (self.energies[i] * self.slope + self.intercept) for i,j in enumerate(self.cps)]
+    def clear_new_entry(self, _):
+        self.newPeakEntry.delete(0,"end")
+    def reset_new_entry(self):
+        self.newPeakEntry.delete(0,"end")
+        self.newPeakEntry.insert(0,"Enter Peak Energy")
+    def submit(self):
         self.controller.show_frame(ManualElementSelect)
-        self.controller.frames[ManualElementSelect].populate_values(self.energies[20:-20], cpsNoBgd[20:-20])
-        self.controller.frames[ManualElementSelect].add_peak_selectors(self.peaks,self.get_possibilites(True),self.variances)
-    def submit(self):
-        self.controller.add_auto_peaks(self.peaks, list(self.variances))
-        self.controller.increment_peak_counter()
+        self.controller.frames[ManualElementSelect].populate_values(self.ROI, self.poss)
 
-class ManualIntegrationPage(Frame): 
-    def __init__(self, parent):
-        Frame.__init__(self, parent)
-        self.controller = parent
-        title = Label(self,text="Manual Integration",font=("Arial",14,"bold"))
-        title.grid(row=0,column=0,columnspan=6)
-        self.f = Figure(figsize=(5,5), dpi=100)
-        self.a = self.f.add_subplot(111)       
-        Label(self, text="Match to Element", font=("Arial",14)).grid(row=1,column=5)
-        Label(self, text="Lower Bound: ").grid(row=7,column=0)
-        self.lowerBound = Entry(self)
-        self.lowerBound.grid(row=7,column=1)
-        Label(self, text="Upper Bound: ").grid(row=7,column=2)
-        self.upperBound = Entry(self)
-        self.upperBound.grid(row=7,column=3)
-        integrateButton = Button(self, text="Integrate", command = self.submit)
-        integrateButton.grid(row=7,column=4)
-        Button(self, text="Back",command=self.back).grid(row=8,column=0)
-        self.curMenu = None
-    def populate_values(self, energies, cps):
-        self.energies = energies
-        self.cps = cps
-        self.a.cla()
-        self.a.plot(energies, cps,"b-")
-        self.canvas = FigureCanvasTkAgg(self.f, self)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().grid(row=1,column=0, columnspan=5, rowspan=5)
-        
-    def add_peak_selector(self, poss):
-        self.poss = poss
-        if self.curMenu != None:
-            self.curMenu.destroy()
-        self.selected = StringVar(self.controller)
-        self.selected.set("Select Element")
-        opts = ["Select Element"] + [p[0]+": "+str(p[1]) for p in poss] #Stupid tkinter workaround
-        self.curMenu = OptionMenu(self,self.selected,*opts)
-        self.curMenu.grid(row=2, column = 5)
-    def back(self):
-        self.controller.show_frame(ReviewFitPage)
-    def submit(self):
-        try: 
-            lowBound = float(self.lowerBound.get())
-            highBound = float(self.upperBound.get())
-        except ValueError:
-            messagebox.showinfo("Error","Use numbers for the bounds please!")
-            return None
-        if lowBound > highBound:
-            messagebox.showinfo("Error","Lower bound cannot be greater than upper bound!")
-            return None
-        if lowBound < self.energies[0] or highBound > self.energies[-1]:
-            messagebox.showinfo("Error","Bounds must be within data bound")
-            return None
-        if self.selected.get() == "Select Peak":
-            messagebox.showinfo("Error","Select a peak match!")
-            return None
-        #do integration
-        #TODO: Infinite loop here i think
-        i=0
-        while self.energies[i]<lowBound:
-            i += 1
-        j=i
-        while self.energies[j]<highBound:
-            j += 1
-        #trapezoidal sum
-        startEnergy = self.energies[i]
-        endEnergy = self.energies[j]
-        n = j-i+1
-        area = (self.energies[j] - self.energies[i]) / (2 * (j-i+1)) * (sum(self.cps[i:j+1])+sum(self.cps[i+1:j]))
-        peak = []
-        element, loc = self.selected.get().split(": ")
-        for i in self.poss:
-            if i[0] == element and str(i[1]) == loc:
-                peak = i
-        self.controller.add_mi_peak(peak, area, startEnergy, endEnergy, n)
-        self.controller.increment_peak_counter()
-        self.curMenu.destroy()
 class ManualElementSelect(Frame): 
     def __init__(self, parent):
         Frame.__init__(self, parent)
@@ -274,27 +173,25 @@ class ManualElementSelect(Frame):
         Button(self, text="Submit", command=self.submit).grid(row=20, column=5)
         self.newObjects = []
         Button(self, text="Back",command=self.back).grid(row=25,column=0)
-    def populate_values(self, energies, cps):
+    def populate_values(self, ROI, poss):
+        self.ROI = ROI
+        self.poss = poss
         self.a.cla()
-        self.a.plot(energies, cps,"b-")
+        self.a.plot(ROI.get_energies(), ROI.get_fitted_curve(),"b-")
         self.canvas = FigureCanvasTkAgg(self.f, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=1,column=0, columnspan=4, rowspan=20)
-        
-    def add_peak_selectors(self, peaks, poss, variances):
         for o in self.newObjects:
             o.destroy()
         self.newObjects = []
         self.selected = []
-        self.peaks = peaks
-        self.variances = variances
-        centers = peaks[::3]
+        self.peaks = ROI.get_peaks()
+        centers = [p.get_ctr() for p in self.peaks]
         for i in range(len(centers)):
             self.selected.append(StringVar(self.controller))
-        self.poss = poss
         for i in range(len(centers)):
             self.selected[i].set("Ignore")
-            opts = ["","Ignore"] + [j[0]+": "+str(j[1]) for j in poss[i]] #Stupid tkinter workaround
+            opts = ["","Ignore"] + [j.get_ele()+": "+str(j.get_ctr()) for j in poss[i]] #Stupid tkinter workaround
             #TODO: Dicts of these?
             copy = i
             temp = Label(self,text=str(centers[i]))
@@ -314,39 +211,34 @@ class ManualElementSelect(Frame):
         for i in range(len(self.selected)):
             if self.selected[i].get() != "Ignore":
                 inp.append(self.selected[i].get())
-                usedPeaks += self.peaks[3*i:3*i+3]
-                usedVars += self.variances[3*i:3*i+3]
+                usedPeaks += self.peaks[i]
                 sel = True
         if not sel:
-            massagebox.showinfo("Error","Please match at least one peak!")
+            messagebox.showinfo("Error","Please match at least one peak!")
             return None
         for p in inp:
             temp = p.split(": ")
             for q in self.poss:
-                for r in q:
-                    if r[0] == temp[0] and str(r[1]) == temp[1]:
-                        usedPoss.append(r)
-        toReturn = []
-        for i in range(0, len(usedPeaks), 3):
-            ctr = usedPeaks[i]
-            amp = usedPeaks[i+1]
-            ampVar = usedVars[i+1]
-            wid = usedPeaks[i+2]
-            widVar = usedVars[i+2]
-            mass = amp * abs(wid) * math.sqrt(2*math.pi) / float(usedPoss[i//3][2])
-            massDev = math.sqrt(var_mul(amp, ampVar, wid, widVar)) * math.sqrt(2*math.pi) / float(usedPoss[i//3][2])
-            toReturn.append([usedPoss[i//3][0], [ctr, amp, wid], float(usedPoss[i//3][1]), float(usedPoss[i//3][2]), mass, massDev])
-        self.controller.add_ms_peaks(toReturn)
+                if q.get_ele() == temp[0] and str(q.get_ctr()) == temp[1]:
+                    usedPoss.append(q)
+        peakPairs = []
+        outputs = []
+        for i in range(len(usedPoss)):
+            outputs.append([usedPoss[i],usedPeaks[i]])
+            peakPairs += (usedPeaks[i].get_ctr(), usedPoss[i])
+        self.ROI.add_peak_pairs(peakPairs)
         self.controller.increment_peak_counter()
         
 class ResultsViewer(Frame):
     def __init__(self, parent):
         Frame.__init__(self,parent)
+        self.parent=parent
         self.header = Label(self, text="Results by File", font=("Arial",14,"bold"))
         self.header.grid(row=0,column=0,columnspan=3)
         self.currentRow = 1
     def display_file_results(self,fname,results):
-        pass
+        self.parent.show_frame(SingleFileViewer)
+        self.parent.frames[SingleFileViewer].display_file_results(fname, results)
     def export_all_data(self,filesDict):
         fname = filedialog.asksaveasfilename(initialdir = ".",title = "Select export file",filetypes = [("CSV files","*.csv")])
         if fname[-4:] != ".csv":
@@ -355,22 +247,22 @@ class ResultsViewer(Frame):
         for f in filesDict.keys():
             exportFile.write(f+"\n")
             exportFile.write("Peaks Used for Mass Calculations:\n")
-            exportFile.write("Element, Theorhetical Peak Energy, Observed Peak Energy, Peak Height, Peak Width, Peak Sensitivity, Predicted Mass (mg), Std. Dev. (mg)\n")
+            exportFile.write("Element, Theorhetical Peak Energy, Observed Peak Energy, Peak Height, Peak Width, Peak Area, Peak Sensitivity, Predicted Mass (mg), Std. Dev. (mg)\n")
             for element in filesDict[f][0].keys():
                 exportFile.write(element+",")
                 for peak in filesDict[f][0][element]:
-                    outList = [peak[1]] + list(peak[0][:3]) + list(peak[2:])
+                    outList = [peak[1]] + list(peak[0][:4]) + list(peak[2:])
                     exportFile.write(','.join([str(i) for i in outList])+"\n,")
                 exportFile.seek(exportFile.tell() - 1, os.SEEK_SET)  #Don't indent the next element
             exportFile.write("Disregarded Peaks:\n")
-            exportFile.write("Observed Peak Energy, Peak Height, Peak Width, Closest Element, Element's Peak Center, Element Sensitivity, Predicted Mass (mg), Std. Dev. (mg)\n")
+            exportFile.write("Observed Peak Energy, Peak Height, Peak Width, Peak Area, Closest Element, Element's Peak Center, Element Sensitivity, Predicted Mass (mg), Std. Dev. (mg)\n")
             for element in filesDict[f][2].keys():
                 for peak in filesDict[f][2][element]:
-                    outList = list(peak[0][:3]) + [element] + list(peak[1:])
+                    outList = list(peak[0][:4]) + [element] + list(peak[1:])
                     exportFile.write(','.join([str(i) for i in outList])+"\n")
                 exportFile.seek(exportFile.tell() - 1, os.SEEK_SET)  #Don't indent the next element
             exportFile.write("Masses Calculated:"+"\n")
-            exportFile.write("Element, Predicted Mass (mg), Std. Dev. (mg), Predicted Mass (mol), Std. Dev. (mol)\n")
+            exportFile.write("Element, Predicted Mass (mg), Std. Dev. (mg), Number of Atoms (mol), Std. Dev. (mol)\n")
             for element in filesDict[f][1].keys():
                 exportFile.write(element + ',' + ','.join([str(i) for i in filesDict[f][1][element]])+"\n")
             exportFile.write("\n\n")
@@ -379,20 +271,50 @@ class ResultsViewer(Frame):
         for f in filesDict.keys():
             fileLabel = Label(self, text=f)
             fileLabel.grid(row=self.currentRow,column=0)
-            showButton = Button(self, text = "Show", command=lambda:self.display_file_results(f,filesDict[f]))
+            showButton = Button(self, text = "Show", command=lambda tmp=f:self.display_file_results(tmp,filesDict[tmp]))
             showButton.grid(row=self.currentRow,column=1)
             self.currentRow += 1
         exportAllButton = Button(self, text="Export All Data", command=lambda:self.export_all_data(filesDict))
         exportAllButton.grid(row=self.currentRow, column=0,columnspan=2)
-"""class SingleFileViewer(Frame):
-    def __init__(self, parent, controller):
+class SingleFileViewer(Frame):
+    def __init__(self, parent):
         Frame.__init__(self,parent)
+        self.parent=parent
         self.currentRow = 0
-    def display_file_results(self,fname,results):"""
-
-
+    
+    def write_row(self, itemsList):
+        for i in range(len(itemsList)):
+            Label(self, text=str(itemsList[i]), borderwidth=4, relief="solid").grid(row=self.currentRow, column=i, sticky="nsew")
+        self.currentRow += 1
         
-
+    def display_file_results(self,fname, results):
+        self.currentRow = 0
+        Button(self, text="Back",command=self.go_back).grid(row=1000,column=0)
+        Label(self, text=fname,font=("Arial",14)).grid(row=0,column=0,columnspan=8)
+        Label(self, text="Peaks Used for Mass Calculations:").grid(row=1,column=0, columnspan=2, pady=(20,0), sticky="w")
+        self.currentRow = 2
+        self.write_row(['Element', 'Theorhetical Peak Energy', 'Observed Peak Energy', 'Peak Height', 'Peak Width', 'Peak Area','Peak Sensitivity', 'Predicted Mass (mg)', 'Std. Dev. (mg)'])
+        for element in results[0].keys():
+            for peak in results[0][element]:
+                outList = [element, peak[1]] + list(peak[0][:4]) + list(peak[2:])
+                self.write_row(outList)
+        Label(self, text="Disregarded Peaks:").grid(row=self.currentRow,column=0, columnspan=2, pady=(20,0), sticky="w") 
+        self.currentRow += 1
+        self.write_row(['Observed Peak Energy', 'Peak Height', 'Peak Width', 'Peak Area','Closest Element', "Element's Peak Center", 'Element Sensitivity', 'Predicted Mass (mg)', 'Std. Dev. (mg)'])
+        for element in results[2].keys():
+            for peak in results[2][element]:
+                outList = list(peak[0][:4]) + [element] + list(peak[1:])
+                self.write_row(outList)
+        Label(self, text="Masses Calculated:").grid(row=self.currentRow,column=0, columnspan=2, pady=(20,0), sticky="w") 
+        self.currentRow += 1
+        self.write_row(['Element', 'Predicted Mass (mg)', 'Std. Dev. (mg)', 'Number of Atoms (mol)', 'Std. Dev. (mol)'])
+        for element in results[1].keys():
+            self.write_row([element]+results[1][element])
+            
+    def go_back(self):
+        for c in self.winfo_children():
+            c.destroy()
+        self.parent.show_frame(ResultsViewer)
 class BaseFileSelectorFrame(Frame):
     def __init__(self, parent, files):
         Frame.__init__(self, parent)
