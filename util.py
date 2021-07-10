@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 import math
 import itertools
 from models import GaussianPeak, LinearBackground
+from sigfig import round
 
 class KnownPeak:
     def __init__(self, elementName, center, unit = "mg", sensitivity=None, mass=None):
@@ -24,9 +25,10 @@ class KnownPeak:
             self.output = "Sensitivity ("+unit+")"
         elif sensitivity != None:
             self.divisor = sensitivity
-            self.output = "Mass("+unit+")"
+            self.output = "Mass ("+unit+")"
         else:
             self.divisor = None
+            self.output = "Area (cps)"
     def export_to_dict(self):
         if self.divisor != None:
             return {
@@ -48,11 +50,13 @@ class KnownPeak:
         return self.center
     def get_ele(self):
         return self.elementName
+    def to_string(self):
+        return self.elementName + " : " + str(round(float(self.center), decimals=1))
     def get_output(self):
         return self.output
     def get_results(self, area, areaStdev):
         if self.divisor == None:
-            raise TypeError("No Sensitivity or Mass was provided for known peak: "+str(self.center))
+            return [area, areaStdev]
         return [area/self.divisor, areaStdev/self.divisor]
 
 def multiple_peak_and_background(peaks, background, x, params):
@@ -68,23 +72,29 @@ def multiple_peak_and_background(peaks, background, x, params):
             
         return y
 
-def set_all_params(peaks, background, params, variances):
+def set_all_params(peaks, background, params, variances, reanalyze):
     leftCounter = 0
     rightCounter = background.get_num_params()
     background.set_params(params[leftCounter:rightCounter])
     background.set_variances(variances[leftCounter:rightCounter])
+    if not reanalyze:
+        background.set_original_params(params[leftCounter:rightCounter])
+        background.set_original_variances(variances[leftCounter:rightCounter])
     for peak in peaks:
         leftCounter = rightCounter
         rightCounter = leftCounter + peak.get_num_params()
         peak.set_params(params[leftCounter:rightCounter])
         peak.set_variances(variances[leftCounter:rightCounter])
+        if not reanalyze:
+            peak.set_original_params(params[leftCounter:rightCounter])
+            peak.set_original_variances(variances[leftCounter:rightCounter])
 
 def get_curve(peaks, background, x):
     y = np.zeros_like(x)
     y += background.get_ydata(x)
     for peak in peaks:
         y += peak.get_ydata(x)
-    return y
+    return list(y)
 
 
 """Functions to search for values in my data, used as utilities in many places. Modified binary search algorithm."""

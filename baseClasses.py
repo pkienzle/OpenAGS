@@ -14,6 +14,11 @@ class Peak(ABC):
     def get_ydata_with_params(xdata,params):
         pass
 
+    @staticmethod
+    @abstractmethod
+    def get_entry_fields(self):
+        pass 
+
     @abstractmethod
     def get_type(self):
         pass
@@ -29,7 +34,19 @@ class Peak(ABC):
     @abstractmethod
     def get_params(self):
         pass
-   
+
+    @abstractmethod 
+    def set_original_params(self, params):
+        pass
+    @abstractmethod
+    def get_original_params(self):
+        pass
+    @abstractmethod
+    def set_original_variances(self, vars):
+        pass
+    @abstractmethod
+    def get_original_variances(self):
+        pass
     @abstractmethod
     def get_ctr(self):
         pass
@@ -50,9 +67,6 @@ class Peak(ABC):
     def get_ydata(self, xdata):
         pass
 
-    @abstractmethod
-    def get_entry_fields(self):
-        pass 
     @abstractmethod
     def handle_entry(self, entry):
         pass
@@ -75,7 +89,11 @@ class Background(ABC):
     @abstractmethod
     def guess_params(xdata,ydata):
         pass
-    
+    @staticmethod
+    @abstractmethod
+    def get_entry_fields(self):
+        pass
+
     @abstractmethod
     def get_type(self):
         pass
@@ -87,15 +105,23 @@ class Background(ABC):
     @abstractmethod
     def set_params(self, newParams):
         pass
-    
+    @abstractmethod 
+    def set_original_params(self, params):
+        pass
+    @abstractmethod
+    def get_original_params(self):
+        pass
+    @abstractmethod
+    def set_original_variances(self, vars):
+        pass
+    @abstractmethod
+    def get_original_variances(self):
+        pass
     @abstractmethod
     def get_ydata(self, xdata):
         pass
     @abstractmethod
     def get_ydata_with_params(self,xdata,params):
-        pass
-    @abstractmethod
-    def get_entry_fields(self):
         pass
     
     @abstractmethod

@@ -2,7 +2,7 @@ import xylib
 from util import KnownPeak
 import re
 import numpy as np
-
+from openpyxl import Workbook
 class SpectrumParser:
     """Parser for all Spectrum file formats"""
     def __init__(self, fname):
@@ -85,3 +85,51 @@ class StandardsFileParser:
             self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), mass = float(l[divisor_index]), unit=unit) for l in lines]
         self.file.close()
         return self.peaks
+
+class CSVWriter:
+    def __init__(self, projectID, originalFileName, headings, data):
+        self.fname = "./results/" + projectID + "/" + originalFileName.split('.')[0] + "_Analysis_Results.csv"
+        self.headings = headings
+        self.data = data
+    def write(self):
+        f = open(self.fname, "w")
+        f.seek(0)
+        f.write(",".join(self.headings)+"\n")
+        for line in self.data:
+            f.write(','.join([str(e) for e in line])+"\n")
+        f.close()
+
+class ExcelWriter:
+    def __init__(self, projectID, projectTitle, allFilenames, headings, data):
+        self.fname = "./results/" + projectID + "/" + projectTitle.replace(" ","_").replace("\\","") + ".xlsx"
+        self.allFilenames = allFilenames
+        self.headings = headings
+        self.data = data
+    def write(self):
+        wb = Workbook()
+
+        ws = wb.active
+        ws.title = "All Files"
+        ws["A1"] = "Filename"
+        for i in range(len(self.headings)):
+            _ = ws.cell(row=1, column=i+2, value=self.headings[i])
+        rowCount = 1
+        for i in range(len(self.allFilenames)):
+            for j in range(len(self.data[i])):
+                _ = ws.cell(row=rowCount, column=1, value=self.allFilenames[i])
+                for k in range(len(self.data[i][j])):
+                    _ = ws.cell(row=rowCount, column=k+2, value=self.data[i][j][k])
+                rowCount += 1
+
+        for i in range(len(self.allFilenames)):
+            newWs = wb.create_sheet(self.allFilenames[i])
+            for i in range(len(self.headings)):
+                _ = newWs.cell(row=1, column=i+1, value=self.headings[i])
+            for j in range(len(self.data[i])):
+                for k in range(len(self.data[i][j])):
+                    _ = newWs.cell(row=j+2, column=k+1, value=self.data[i][j][k])
+        
+        wb.save(self.fname)
+
+
+
