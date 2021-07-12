@@ -1,6 +1,5 @@
 from quart import Quart, request, redirect, url_for, render_template, send_file, websocket, make_response
-from quart_auth import AuthManager, AuthUser, login_user, logout_user, current_user, login_required, Unauthorized
-from backend import PGAAnalysis
+from backend import ActivationAnalysis
 from parsers import CSVWriter, ExcelWriter
 import bcrypt
 import asyncio
@@ -32,137 +31,35 @@ async def startup():
     global loop
     loop = asyncio.get_event_loop()
 
-@app.route("/login", methods=['GET', 'POST'])
-async def login():
-    if request.method == "POST":
-        User = Query()
-        form = await request.form
-        async with AIOTinyDB("userDB.json") as userDB:
-            user_doc = userDB.search(User.uname == form["uname"])
-            if user_doc == []:
-                return redirect(url_for("login")+"?failed=true")
-            user_doc = user_doc[0]
-            if await loop.run_in_executor(None, bcrypt.checkpw, form["pw"].encode("utf-8"), user_doc["hashed_password"].encode('utf-8')):
-                login_user(AuthUser(str(user_doc["uname"])))
-                return redirect(url_for("view_profile"))
-            else:
-                return redirect(url_for("login")+"?failed=true")
-    else:
-        if await current_user.is_authenticated:
-            return redirect(url_for("view_profile"))
-        return await(render_template("login.html"))
-
-@app.route("/signup", methods=['GET', 'POST'])
-async def signup():
-    if request.method == "POST":
-        User = Query()
-        async with AIOTinyDB("userDB.json") as userDB:
-            form = await request.form
-            user_doc = userDB.search(User.uname == form["uname"])
-            if user_doc != []:
-                return redirect(url_for("signup")+"?exists=true")
-            salt = bcrypt.gensalt(16)
-            hashed_pw = await loop.run_in_executor(None, bcrypt.hashpw, form["pw"].encode('utf-8'), salt)
-            email = form["email"]
-            emailHash = md5(email.lower().encode('utf-8')).hexdigest()
-            userDB.insert({"uname": form["uname"], "hashed_password" : hashed_pw.decode('utf-8'), "email" : email, "emailHash" : emailHash})
-        return redirect(url_for("login"))
-    else:
-        if await current_user.is_authenticated:
-            return redirect(url_for("view_profile"))
-        return await(render_template("signup.html"))
-
-@login_required
-@app.route("/profile")
-async def view_profile():
-    User = Query()
-    async with AIOTinyDB("userDB.json") as userDB:
-        userEntry = userDB.search(User.uname == current_user.auth_id)
-    return await(render_template("profile.html", userEntry=userEntry))
-
 @app.route("/icons/<icon_name>")
 async def get_icon(icon_name):
-    return await send_file(os.path.join("D:\\CyPat\\OpenAGS\\img\\icons", icon_name))
+    return await send_file(os.path.join(".\\img\\icons", icon_name))
 
-"""
-@login_required
-@app.route("/projects/<projectID>/setup", methods=["GET","POST"])
-async def editAnalysisOptions(projectID):
-    global activeProjects
-    if request.method == "GET":
-        uname = current_user.auth_id
-        User = Query()
-        async with AIOTinyDB("userDB.json") as userDB:
-            userEntry = userDB.search(User.uname == uname)[0]
-        currentUser = {"uname" : uname, "hash" : userEntry["emailHash"]}
-        if projectID in activeProjects.keys():
-            analysisObject = activeProjects[projectID]["analysisObject"]
-            activeProjects[projectID]["activeUsers"].append(currentUser)
-        else:
-            Project = Query()
-            async with AIOTinyDB("projectDB.json") as projectDB:
-                currentProject = projectDB.search(Project.id == projectID)[0]
-                analysisObject = PGAAnalysis()
-                await loop.run_in_executor(None, analysisObject.load_from_dict, currentProject)
-                activeProjects[projectID] = {
-                    "analysisObject" : analysisObject,
-                    "activeUsers" : [currentUser],
-                    "webSockets" : []
-                }
-        return await(render_template("setup.html", analysisObject=analysisObject, currentUser=currentUser))
-    else:
-        form = await request.form
-        isotopes = form.getlist("isotopes")
-        activeProjects[projectID]["analysisObject"].create_ROIs(isotopes)
-        await loop.run_in_executor(None, activeProjects[projectID]["analysisObject"].get_fitted_ROIs)
-        #TODO: make this periodic or something
-        async with AIOTinyDB("projectDB.json") as projectDB:
-            Project = Query()
-            exportDict = activeProjects[projectID]["analysisObject"].export_to_dict()
-            exportDict["id"] = projectID
-            projectDB.update(exportDict, Project.id == projectID)
-        return json.dumps({"id" : projectID})"""
-
-@login_required
 @app.route("/projects/<projectID>/<action>")
 async def project(projectID, action):
     global activeProjects
-    uname = current_user.auth_id
-    User = Query()
-    async with AIOTinyDB("userDB.json") as userDB:
-        userEntry = userDB.search(User.uname == uname)[0]
     analysisObject = None
-    activeUsers = None
-    currentUser = {"uname" : uname, "hash" : userEntry["emailHash"]}
     if projectID in activeProjects.keys():
         analysisObject = activeProjects[projectID]["analysisObject"]
-        activeProjects[projectID]["activeUsers"].append(currentUser)
-        wsData = {"type" : "user", "action": "joined", "username": currentUser["uname"], "userHash" : currentUser["hash"]}
-        for queue in activeProjects[projectID]["webSockets"]:
-            await queue.put(json.dumps(wsData)) 
-        activeUsers = activeProjects[projectID]["activeUsers"]
     else:
         Project = Query()
         async with AIOTinyDB("projectDB.json") as projectDB:
             currentProject = projectDB.search(Project.id == projectID)[0]
-            analysisObject = PGAAnalysis()
+            analysisObject = ActivationAnalysis()
             await loop.run_in_executor(None, analysisObject.load_from_dict, currentProject)
-            activeUsers = [currentUser]
             activeProjects[projectID] = {
                 "analysisObject" : analysisObject,
-                "activeUsers" : activeUsers,
                 "webSockets" : []
             }
-    if currentUser["uname"] in tmpRmvLst:
-        tmpRmvLst.remove(currentUser["uname"])
+
     if action == "edit":
         if not analysisObject.ROIsFitted:
             analysisObject.get_fitted_ROIs()
-        return await(render_template("project.html", analysisObject=analysisObject, activeUsers=activeUsers, currentUser=currentUser))
+        return await(render_template("project.html", analysisObject=analysisObject))
     elif action == "view":
-        return await(render_template("view.html", analysisObject=analysisObject, activeUsers=activeUsers, currentUser=currentUser))
+        return await(render_template("view.html", analysisObject=analysisObject))
     elif action == "results":
-        return await(render_template("results.html", analysisObject=analysisObject, activeUsers=activeUsers, currentUser=currentUser))
+        return await(render_template("results.html", analysisObject=analysisObject))
     else: 
         return ""
 
@@ -216,7 +113,7 @@ async def serve_result(projectID, filename):
             Project = Query()
             async with AIOTinyDB("projectDB.json") as projectDB:
                 currentProject = projectDB.search(Project.id == projectID)[0]
-                analysisObject = PGAAnalysis()
+                analysisObject = ActivationAnalysis()
                 await loop.run_in_executor(None, analysisObject.load_from_dict, currentProject)
         if filename.split(".")[-1] == "xlsx":
             headings = [fd["headings"] for fd in analysisObject.fileData]
@@ -233,20 +130,6 @@ async def serve_result(projectID, filename):
         res = make_response(send_file("./results/"+projectID+"/"+filename))
         res.headers['Content-Disposition'] = 'attachment; filename="'+filename+'"'
         return res
-
-async def user_left(uname, projectID):
-    global tmpRmvLst
-    global activeProjects
-    tmpRmvLst.append(uname)
-    await asyncio.sleep(10)
-    if uname in tmpRmvLst:
-        for u in activeProjects[projectID]["activeUsers"]:
-            if u["uname"] == uname:
-                activeProjects[projectID]["activeUsers"].remove(u)
-                break
-        wsData = {"type" : "user", "action" : "left", "username" : uname}
-        for queue in activeProjects[projectID]["websockets"]:
-            queue.send(json.dumps(wsData))
 
 @app.websocket("/projects/<projectID>/ws")
 async def ws(projectID):
@@ -266,9 +149,7 @@ async def ws(projectID):
         while True:
             data = await websocket.receive()
             dataDict = json.loads(data)
-            if dataDict["type"] == "user":
-                pass
-            elif dataDict["type"] == "ROIUpdate":
+            if dataDict["type"] == "ROIUpdate":
                 analysisObject = activeProjects[projectID]["analysisObject"]
                 ROI = analysisObject.ROIs[dataDict["index"]]
                 ROI.fitted = False

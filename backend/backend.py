@@ -7,10 +7,9 @@ from parsers import SpectrumParser, StandardsFileParser
 from models import GaussianPeak, LinearBackground
 from sigfig import round
 
-class PGAAnalysis:
-    def __init__(self, user_prefs = constants.default_prefs, title = ""):
-        #TODO: make user_prefs userPrefs (camelCase variables)
-        self.user_prefs = user_prefs
+class ActivationAnalysis:
+    def __init__(self, userPrefs = constants.default_prefs, title = ""):
+        self.userPrefs = userPrefs
         self.fileData = []
         self.fileList = []
         self.knownPeaks = {}
@@ -21,7 +20,7 @@ class PGAAnalysis:
         self.resultsGenerated = False
     def load_from_dict(self, stored_data):
         if "userPrefs" in stored_data.keys():
-            self.user_prefs = stored_data["userPrefs"]
+            self.userPrefs = stored_data["userPrefs"]
         self.title = stored_data["title"]
         self.add_files(stored_data["files"])
         self.load_known_peaks(stored_data["standardsFilename"])
@@ -47,7 +46,7 @@ class PGAAnalysis:
         exportROIs = [r.export_to_dict() for r in self.ROIs]
         if self.resultsGenerated:
             return {
-            "userPrefs" : self.user_prefs,
+            "userPrefs" : self.userPrefs,
             "title" : self.title,
             "files" : self.fileList,
             "standardsFilename" : self.standardsFilename,
@@ -59,7 +58,7 @@ class PGAAnalysis:
             "evaluatorNames": self.fileData[0]["evaluatorNames"] 
             }
         return {
-            "userPrefs" : self.user_prefs,
+            "userPrefs" : self.userPrefs,
             "title" : self.title,
             "files" : self.fileList,
             "standardsFilename" : self.standardsFilename,
@@ -119,11 +118,11 @@ class PGAAnalysis:
         for k in sorted(self.knownPeaks.keys(), key=float):
             p = self.knownPeaks[k]
             if p.get_ele() in addedIsotopes or p.get_ctr() in editList:
-                regions.append(max(p.get_ctr() - self.user_prefs["roi_width"], 0))
-                regions.append(min(p.get_ctr() + self.user_prefs["roi_width"], self.fileData[0]["energies"][-1]))
+                regions.append(max(p.get_ctr() - self.userPrefs["roi_width"], 0))
+                regions.append(min(p.get_ctr() + self.userPrefs["roi_width"], self.fileData[0]["energies"][-1]))
                 peaks.append([p])
 
-        if self.user_prefs["overlap_rois"]:
+        if self.userPrefs["overlap_rois"]:
             i=0
             while i < len(regions) - 1:
                 if regions[i] > regions[i+1]: #if there is an overlap, delete both points that overlap, leaving a single, larger region
@@ -139,7 +138,7 @@ class PGAAnalysis:
         for i in range(0,len(regions),2):
             lowerIndex = binary_search_find_nearest(energies, regions[i])
             upperIndex = binary_search_find_nearest(energies, regions[i+1])
-            r = ROI(energies[lowerIndex:upperIndex],cps[lowerIndex:upperIndex], [lowerIndex, upperIndex], self.user_prefs)
+            r = ROI(energies[lowerIndex:upperIndex],cps[lowerIndex:upperIndex], [lowerIndex, upperIndex], self.userPrefs)
             r.set_known_peaks(peaks[i//2])
             self.ROIs.append(r)
         self.ROIs = sorted(self.ROIs, key=lambda x:x.get_range()[0])
