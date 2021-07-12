@@ -1,5 +1,7 @@
 img/
 old/
 spectra/
+/webserver/uploads
 __pycache__/
 *.csv
+*.json
