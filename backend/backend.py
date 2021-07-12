@@ -1,14 +1,14 @@
 import numpy as np
 from scipy.optimize import curve_fit
 import itertools
-from util import multiple_peak_and_background, get_curve, binary_search_find_nearest, set_all_params, som, KnownPeak
-import constants
+from util import multiple_peak_and_background, get_curve, binary_search_find_nearest, set_all_params, KnownPeak
+from constants import default_prefs, som
 from parsers import SpectrumParser, StandardsFileParser
 from models import GaussianPeak, LinearBackground
 from sigfig import round
 
 class ActivationAnalysis:
-    def __init__(self, userPrefs = constants.default_prefs, title = ""):
+    def __init__(self, userPrefs = default_prefs, title = ""):
         self.userPrefs = userPrefs
         self.fileData = []
         self.fileList = []
@@ -18,6 +18,7 @@ class ActivationAnalysis:
         self.title = title
         self.ROIsFitted = False
         self.resultsGenerated = False
+        self.delayed = False
     def load_from_dict(self, stored_data):
         if "userPrefs" in stored_data.keys():
             self.userPrefs = stored_data["userPrefs"]
@@ -38,7 +39,7 @@ class ActivationAnalysis:
         if self.resultsGenerated:
             for i in range(len(stored_data["results"])):
                 self.fileData[i]["results"] = stored_data["results"][i]
-                self.fileData[i]["headings"] = stored_data["resultHeadings"]
+                self.fileData[i]["resultHeadings"] = stored_data["resultHeadings"]
                 self.fileData[i]["evaluatorNames"] = stored_data["evaluatorNames"]
 
 
@@ -118,8 +119,14 @@ class ActivationAnalysis:
         for k in sorted(self.knownPeaks.keys(), key=float):
             p = self.knownPeaks[k]
             if p.get_ele() in addedIsotopes or p.get_ctr() in editList:
-                regions.append(max(p.get_ctr() - self.userPrefs["roi_width"], 0))
-                regions.append(min(p.get_ctr() + self.userPrefs["roi_width"], self.fileData[0]["energies"][-1]))
+                if p.get_ele() == "B-11":
+                    regions.append(max(p.get_ctr() - self.userPrefs["B_roi_width"], 0))
+                    regions.append(min(p.get_ctr() + self.userPrefs["B_roi_width"], self.fileData[0]["energies"][-1]))
+                else:
+                    #TODO: expand region to include boron peak
+                    regions.append(max(p.get_ctr() - self.userPrefs["roi_width"], 0))
+                    regions.append(min(p.get_ctr() + self.userPrefs["roi_width"], self.fileData[0]["energies"][-1]))
+                
                 peaks.append([p])
 
         if self.userPrefs["overlap_rois"]:
@@ -138,7 +145,7 @@ class ActivationAnalysis:
         for i in range(0,len(regions),2):
             lowerIndex = binary_search_find_nearest(energies, regions[i])
             upperIndex = binary_search_find_nearest(energies, regions[i+1])
-            r = ROI(energies[lowerIndex:upperIndex],cps[lowerIndex:upperIndex], [lowerIndex, upperIndex], self.userPrefs)
+            r = ROI(energies[lowerIndex:upperIndex],cps[lowerIndex:upperIndex], [lowerIndex, upperIndex], "B-11" in [p.get_ele() for p in peaks[i//2]] and not self.delayed, self.userPrefs)
             r.set_known_peaks(peaks[i//2])
             self.ROIs.append(r)
         self.ROIs = sorted(self.ROIs, key=lambda x:x.get_range()[0])
@@ -193,7 +200,7 @@ class ActivationAnalysis:
            
 
 class ROI:
-    def __init__(self, energies, cps, indicies, userPrefs = constants.default_prefs):
+    def __init__(self, energies, cps, indicies, boronROI = False, userPrefs = default_prefs):
         self.energies = energies
         self.range = (energies[0], energies[-1])
         self.cps = cps
@@ -203,9 +210,14 @@ class ROI:
         self.peaks = []
         self.peakPairs = None
         self.fitted = False
+        self.boronROI = boronROI
 
     def load_from_dict(self, stored_data):
-        self.peaks = [som["peaks"][p["type"]](*p["params"],variances=p["variances"]) for p in stored_data["peaks"]]
+        self.peaks = [som["peaks"][p["type"]](*p["params"]) for p in stored_data["peaks"]]
+        for i in range(len(self.peaks)):
+            self.peaks[i].set_original_params(stored_data["peaks"][i]["params"])
+            self.peaks[i].set_variances(stored_data["peaks"][i]["variances"])
+            self.peaks[i].set_original_variances(stored_data["peaks"][i]["variances"])
         self.bg = som["backgrounds"][stored_data["background"]["type"]](*stored_data["background"]["params"],variances=stored_data["background"]["variances"])
         self.fitted = (self.peaks[0].get_variances()[0] != None)
         for kp in stored_data["knownPeaks"]:
@@ -231,10 +243,12 @@ class ROI:
     def get_background(self):
         return self.bg
     def add_peaks(self):
-        if (self.range[0] > 460 and self.range[0] < 520) or (self.range[1] > 460 and self.range[1] < 520) or (self.range[0] < 460 and self.range[1] > 520):
-            #TODO: Boron Peak things
-            pass
-        self.peaks = som["peaks"][self.userPrefs["peak_type"]].guess_params(self.energies, self.cps)
+        if self.boronROI:
+            BPeak = som["peaks"][self.userPrefs["boron_peak_type"]]
+            self.peaks = [BPeak.guess_params(self.energies, self.cps)]
+            self.peaks += som["peaks"][self.userPrefs["peak_type"]].guess_params(self.energies, BPeak.remove_from_data(self.energies, self.cps))
+        else:
+            self.peaks = som["peaks"][self.userPrefs["peak_type"]].guess_params(self.energies, self.cps)
    
     def add_bg(self):
         self.bg = som["backgrounds"][self.userPrefs["background_type"]].guess_params(self.energies, self.cps)

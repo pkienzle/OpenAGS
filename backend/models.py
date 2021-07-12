@@ -1,7 +1,9 @@
-from baseClasses import Peak, Background
+from baseClasses import Peak, Background, StandardPeak, BoronPeak
 import math
+from util import binary_search_find_nearest
+from copy import deepcopy
 import numpy as np
-from scipy.signal import find_peaks_cwt
+from scipy.signal import find_peaks_cwt, convolve
 from sigfig import round
 
 class LinearBackground(Background):
@@ -63,7 +65,7 @@ class LinearBackground(Background):
         self.intercept = float(y1 - self.slope * x1)
     
 
-class GaussianPeak(Peak):
+class GaussianPeak(StandardPeak):
     def __init__(self, ctr=0, amp=0, wid = 1, variances = []):
         super().__init__()
         self.ctr = ctr
@@ -122,9 +124,128 @@ class GaussianPeak(Peak):
     def get_ydata_with_params(self,xdata,params):
         xdata = np.array(xdata)
         return params[1] * np.exp( -((xdata - params[0])/params[2])**2)
-    def get_headers(self):
-        return ["Center (kEV)", "Amplitude (cps)", "Width", "Area", "Area Stdev"]
-    def get_all_data(self):
-        return [self.ctr, self.amp, self.wid, self.get_area(), self.get_area_stdev()]
     def to_string(self):
         return "Gaussian: Center " + str(round(float(self.ctr), decimals=1)) + " keV"
+
+class KuboSakaiBoronPeak(BoronPeak):
+    def __init__(self, E0=477.6, N0=1, D=1, delta=1):
+        super().__init__()
+        self.E0 = E0
+        self.N0 = N0
+        self.D = D
+        self.delta = delta
+
+    @staticmethod
+    def guess_params(xdata, ydata):
+        startIndex = binary_search_find_nearest(xdata, 477.6)
+        curIndex = startIndex
+        N0 = 0
+        width = xdata[1] - xdata[0]
+        while xdata[curIndex] < 487.6:
+            N0 += 2 * width * min(ydata[curIndex], ydata[2*startIndex - curIndex])
+            curIndex += 1
+        return KuboSakaiBoronPeak(477.6, N0, 2, 1.3)
+    
+    @staticmethod
+    def remove_from_data(xdata, ydata):
+        newYData = deepcopy(ydata)
+        startIndex = binary_search_find_nearest(xdata, 477.6)
+        curIndex = startIndex
+        minVal = min(ydata)
+        while xdata[curIndex] < 487.6:
+            toSub = min(xdata[curIndex], xdata[2*startIndex - curIndex]) - minVal
+            newYData[curIndex] -= toSub
+            newYData[2*startIndex - curIndex] -= toSub
+            curIndex += 1
+        return newYData
+
+    def get_type(self):
+        return "kubo_sakai"
+    def get_num_params(self):
+        return 4
+    def get_params(self):
+        return [self.E0, self.N0, self.D, self.delta]
+    def set_params(self, params):
+        self.E0, self.N0, self.D, self.delta = params
+    def get_variances(self):
+        return self.variances
+    def set_variances(self, variances):
+        self.variances = variances
+    def get_original_params(self):
+        return self.originalParams
+    def set_original_params(self, params):
+        self.originalParams = list(params)
+    def get_original_variances(self):
+        return self.originalVariances
+    def set_original_variances(self, variances):
+        self.originalVariances = list(variances)
+    def get_ctr(self):
+        return self.E0
+    def get_area(self):
+        return self.N0
+    def get_area_stdev(self):
+        return math.sqrt(self.variances[1])
+
+    def get_ydata(self, xdata):
+        decayConstant = 9.49516685699
+        c = 3*10**8
+        v0=4.8*10**6
+        if xdata[1] - xdata[0] > .1:
+            step = (xdata[1] - xdata[0]) / 10
+        else:
+            step = (xdata[1] - xdata[0])
+        
+        DoGx = np.arange(xdata[0], xdata[-1]+.01, step)
+        DoG = c*self.N0/(2*self.E0*v0) * decayConstant / (decayConstant - self.D) * (1-(c*abs(DoGx-self.E0)/(self.E0*v0))**((decayConstant - self.D)/self.D))
+        for i in range(len(DoGx)):
+            if abs(DoGx[i] - self.E0) > 7.64:
+                DoG[i] = 0
+                
+        numSteps = int((xdata[0] + 5)//step)
+        start = xdata[0] - (numSteps * step)
+        DoG = np.concatenate((np.zeros(numSteps), DoG))
+
+        IRx = np.arange(start, 5, step)
+        IR = 1/(self.delta * math.sqrt(2*math.pi)) * math.e ** (-.5*(IRx/self.delta)**2) * step
+
+        convRes = convolve(DoG, IR)
+        if xdata[1] - xdata[0] > .1:
+            return convRes[len(IRx)//2 + numSteps:len(IRx)//2 + numSteps + len(DoGx):10]
+        else:
+            return convRes[len(IRx)//2 + numSteps:len(IRx)//2 + numSteps + len(DoGx)]
+
+    def get_ydata_with_params(self, xdata, params):
+        E0, N0, D, delta = params
+        decayConstant = 9.49516685699
+        c = 3*10**8
+        v0=4.8*10**6
+        step = (xdata[1] - xdata[0]) / 10
+        DoGx = np.arange(xdata[0], xdata[-1]+.01, step)
+        DoG = c*N0/(2*E0*v0) * decayConstant / (decayConstant - D) * (1-(c*abs(DoGx-E0)/(E0*v0))**((decayConstant - D)/D))
+        for i in range(len(DoGx)):
+            if abs(DoGx[i] - E0) > 7.64:
+                DoG[i] = 0
+                
+        numSteps = int((xdata[0] + 5)//step)
+        start = xdata[0] - (numSteps * step)
+        DoG = np.concatenate((np.zeros(numSteps), DoG))
+
+        IRx = np.arange(start, 5, step)
+        IR = 1/(delta * math.sqrt(2*math.pi)) * math.e ** (-.5*(IRx/delta)**2) * step
+
+        convRes = convolve(DoG, IR)
+
+        return convRes[len(IRx)//2 + numSteps:len(IRx)//2 + numSteps + len(DoGx):10]
+    @staticmethod
+    def get_entry_fields():
+        return ["Center (keV)", "Max Amplitude"]
+
+    def handle_entry(self, entry):
+        self.E0 = float(entry[0])
+        self.N0 = 10 * float(entry[1])
+        self.D = 2
+        self.delta = 1.8
+    
+    def to_string(self):
+        return "Boron Peak, Center "+str(round(float(self.E0), decimals=1))+" keV, Area "+str(round(float(self.N0), decimals=1))
+    

@@ -1,7 +1,4 @@
 from quart import Quart, request, redirect, url_for, render_template, send_file, websocket, make_response
-from backend import ActivationAnalysis
-from parsers import CSVWriter, ExcelWriter
-import bcrypt
 import asyncio
 import os
 import uuid
@@ -12,19 +9,21 @@ import json
 from werkzeug.utils import secure_filename
 from aiotinydb import AIOTinyDB
 from tinydb import Query
-from util import som
 from copy import deepcopy
-from evaluators import MassSensEval
 import time
+
+import sys
+sys.path.append('../backend')
+from backend import ActivationAnalysis
+from parsers import CSVWriter, ExcelWriter
+from constants import som
+from evaluators import MassSensEval
 
 loop = None
 
 app = Quart(__name__)
-app.secret_key = "sFmsFAWjJEX96jJUXkGSQA"
-AuthManager(app)
 
 activeProjects = dict()
-tmpRmvLst = []
 
 @app.before_serving
 async def startup():
@@ -55,30 +54,30 @@ async def project(projectID, action):
     if action == "edit":
         if not analysisObject.ROIsFitted:
             analysisObject.get_fitted_ROIs()
-        return await(render_template("project.html", analysisObject=analysisObject))
+        return await(render_template("project.html", analysisObject=analysisObject, projectID=projectID))
     elif action == "view":
-        return await(render_template("view.html", analysisObject=analysisObject))
+        return await(render_template("view.html", analysisObject=analysisObject, projectID=projectID))
     elif action == "results":
-        return await(render_template("results.html", analysisObject=analysisObject))
+        return await(render_template("results.html", analysisObject=analysisObject, projectID=projectID))
     else: 
         return ""
 
-@login_required
 @app.route("/create", methods=["GET","POST"])
 async def create():
     if request.method == "GET":
-        async with aiofiles.open('D:\\Cypat\\OpenAGS\\create.html', mode='r') as f:
+        async with aiofiles.open(os.getcwd()+'\\create.html', mode='r') as f:
             contents = await f.read()
         return contents
     else:
-        upload_path = "D:\\CyPat\\OpenAGS\\uploads"
+        upload_path = "D:\\CyPat\\OpenAGS\\webserver\\uploads"
         projectID = str(uuid.uuid4())
         #TODO: aiofiles.os.mkdir not working for some reason. Debug this
         os.mkdir(os.path.join(upload_path,projectID))
+        os.mkdir(os.path.join(os.getcwd(), "results\\"+projectID))
         uploaded_files = await request.files  
         form = await request.form      
         files_list = uploaded_files.getlist("file")
-        standardsFilename = "D:\\CyPat\\OpenAGS\\AllSensitivity.csv"
+        standardsFilename = os.getcwd()+"\\AllSensitivity.csv"
         filenamesList = []
         for f in files_list:
             if f.filename[-4:] == ".csv":
@@ -87,6 +86,7 @@ async def create():
                 filenamesList.append(os.path.join(upload_path,projectID,secure_filename(f.filename)))
             p = os.path.join(upload_path,projectID,secure_filename(f.filename))
             await f.save(p)
+
         async with AIOTinyDB("projectDB.json") as projectDB:
             projectDB.insert({
                 "id" : projectID,
@@ -102,9 +102,9 @@ async def create():
 @app.route("/results/<projectID>/<filename>")
 async def serve_result(projectID, filename):
     try:
-        res = make_response(send_file("./results/"+projectID+"/"+filename))
-        res.headers['Content-Disposition'] = 'attachment; filename="'+filename+'"'
-        return res
+        async with aiofiles.open("./results/"+projectID+"/"+filename,"rb") as f:
+            c = await f.read()
+            return c, 200, {'Content-Disposition' : 'attachment; filename="'+filename+'"'}
     except:
         global activeProjects
         if projectID in activeProjects.keys():
@@ -116,20 +116,27 @@ async def serve_result(projectID, filename):
                 analysisObject = ActivationAnalysis()
                 await loop.run_in_executor(None, analysisObject.load_from_dict, currentProject)
         if filename.split(".")[-1] == "xlsx":
-            headings = [fd["headings"] for fd in analysisObject.fileData]
+            headings = [fd["resultHeadings"] for fd in analysisObject.fileData]
             data = [fd["results"] for fd in analysisObject.fileData]
             ew = ExcelWriter(projectID, analysisObject.get_title(), analysisObject.fileList, headings, data)
             ew.write()
-        else:
+        elif filename[-21:] == "_Analysis_Results.csv":
             origFilename = filename.replace("_Analysis_Results.csv","")
             for i in range(len(analysisObject.fileList)):
-                if analysisObject.fileList[i].split('.')[0] == origFilename:
-                    cw = CSVWriter(projectID, analysisObject.fileList[i], analysisObject.fileData[i]["headings"], analysisObject.fileData[i]["results"])
+                if analysisObject.fileList[i].split('\\')[-1].split('.')[0] == origFilename:
+                    cw = CSVWriter(projectID, filename, analysisObject.fileData[i]["resultHeadings"][0], analysisObject.fileData[i]["results"])
                     cw.write()
                     break
-        res = make_response(send_file("./results/"+projectID+"/"+filename))
-        res.headers['Content-Disposition'] = 'attachment; filename="'+filename+'"'
-        return res
+        else:
+            origFilename = filename.replace("_xy.csv","")
+            for i in range(len(analysisObject.fileList)):
+                if analysisObject.fileList[i].split('\\')[-1].split('.')[0] == origFilename:
+                    cw = CSVWriter(projectID, filename, ["Energy (keV)", "Counts Per Second"], zip(analysisObject.fileData[i]["energies"], analysisObject.fileData[i]["cps"]))
+                    cw.write()
+                    break
+        async with aiofiles.open("./results/"+projectID+"/"+filename,"rb") as f:
+            c = await f.read()
+            return c, 200, {'Content-Disposition' : 'attachment; filename="'+filename+'"'}
 
 @app.websocket("/projects/<projectID>/ws")
 async def ws(projectID):
@@ -174,6 +181,7 @@ async def ws(projectID):
                     bgParams = bg[1:]
                     ROI.set_background(som["backgrounds"][bgType](*bgParams))
                 ROI.fit()
+                print("fitted!")
                 outputObj = {
                     "type" : "ROIUpdate",
                     "index" : dataDict["index"],
@@ -264,9 +272,5 @@ async def export_to_db():
             exportDict = activeProjects[projectID]["analysisObject"].export_to_dict()
             exportDict["id"] = projectID
             projectDB.update(exportDict, Project.id == projectID)
-
-@app.errorhandler(Unauthorized)
-async def redirect_to_login(*_: Exception):
-    return redirect(url_for("login"))
 
 app.run()

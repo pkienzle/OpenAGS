@@ -11,7 +11,6 @@ import xylib
 from abc import ABC, abstractmethod
 import math
 import itertools
-from models import GaussianPeak, LinearBackground
 from sigfig import round
 
 class KnownPeak:
@@ -139,14 +138,3 @@ def ivw_combine(meas, stdev = None, variance = None):
         var = 1/sum([1/s**2 for s in stdev])
         res = var * sum([m/s**2 for m,s in zip(meas, stdev)])
     return [res, var**.5]
-
-som = {
-    "backgrounds":
-    {
-        "linear":LinearBackground
-    },
-    "peaks":
-    {
-        "gaussian":GaussianPeak
-    }
-}

@@ -33,11 +33,6 @@
             margin-bottom: 10px;
             margin-left: 10px;
         }
-        .userImage{
-            width:40px;
-            height:40px;
-            float: right;
-        }
         .mt{
             margin-top: 10px;
         }
@@ -174,18 +169,7 @@
                     <button class="btn btn-secondary" onclick="window.location.replace(window.location.href.replace('view', 'results'));">View Results</button>
                 {% endif %}
             </div>
-            <div class="col-3">
-                <span id="usersDiv">
-                    {% for user in activeUsers %}
-                        {% if user['uname'] != currentUser['uname'] %}
-                            <img class = "userImage" src="https://www.gravatar.com/avatar/{{user['hash']}}" title="{{user['uname']}}" />
-                        {% endif %}
-                    {% endfor %}
-                </span>
-            </div>
-            <div class="col-1">
-                <img class="userImage" src="https://www.gravatar.com/avatar/{{currentUser.hash}}" title = "You"/>
-            </div>
+            <div class="col-4"></div>
         </div>
         <div class="row">
         <div id="mainCarousel" class="carousel slide" data-ride="carousel">
@@ -213,6 +197,8 @@
                                 <input class="form-data w-50" id="maxEnergyInput-{{i}}" onfocusout="updateRange({{i}});"/>
                                 <div></div>
                                 <button class="btn btn-secondary" onclick="showCompareModal({{i}});">Compare This Region</button>
+                                <div style="height: 5vh;"></div>
+                                <a class="btn btn-secondary" href="/results/{{projectID}}/{{analysisObject.fileList[i].split('\\')[-1].split('.')[0] + '_xy.csv'}}">Download File as CSV</a>
                             </div>
                         </div>
                     </div>

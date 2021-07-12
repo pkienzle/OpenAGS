@@ -34,18 +34,6 @@
             right:10px;
             float:right;
         }
-        #currentUserDiv{
-            border-left: 10px solid #fff;
-            float:right;
-        }
-        #usersDiv{
-            float:right;
-        }
-        .userImage{
-            width:40px;
-            height:40px;
-            float: right;
-        }
         .navImage{
             float:right;
             width:35px;
@@ -201,17 +189,7 @@
                 <div class="col-6">
                     <button class="btn btn-secondary" onclick="window.location.replace(window.location.href.replace('edit', 'view'));">Back to Spectrum View</button>
                 </div>
-                <div class="col-3">
-                    <span id="usersDiv">
-                        {% for user in activeUsers %}
-                            {% if user['uname'] != currentUser['uname'] %}
-                                <img class = "userImage" src="https://www.gravatar.com/avatar/{{user['hash']}}" title="{{user['uname']}}" />
-                            {% endif %}
-                        {% endfor %}
-                    </span>
-                </div>
-                <div class="col-1">
-                    <img class="userImage"  src="https://www.gravatar.com/avatar/{{currentUser.hash}}" title = "You"/>
+                <div class="col-4">
                 </div>
             </div>
             <div class="row">

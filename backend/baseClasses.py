@@ -6,11 +6,6 @@ class Peak(ABC):
     
     @staticmethod
     @abstractmethod
-    def guess_params(xdata, ydata):
-        pass
-    
-    @staticmethod
-    @abstractmethod
     def get_ydata_with_params(xdata,params):
         pass
 
@@ -70,14 +65,32 @@ class Peak(ABC):
     @abstractmethod
     def handle_entry(self, entry):
         pass
-    @abstractmethod
-    def get_headers(self):
-        pass
-    @abstractmethod
-    def get_all_data(self):
-        pass
+
     @abstractmethod
     def to_string(self):
+        pass
+
+class StandardPeak(Peak):
+    def __init__(self):
+        super().__init__()
+
+    @staticmethod
+    @abstractmethod
+    def guess_params(xdata, ydata):
+        pass
+
+class BoronPeak(Peak):
+    def __init__(self):
+        super().__init__()
+        
+    @staticmethod
+    @abstractmethod
+    def guess_params(xdata, ydata):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def remove_from_data(xdata, ydata):
         pass
     
 

@@ -57,7 +57,6 @@ class StandardsFileParser:
             return self.peaks
         lines = self.file.readlines()
         headings = re.sub(r'[^\x00-\x7F]+','', lines[0]).strip().split(",")
-        print(headings)
         lines = [l.split(",") for l in lines[1:]]
         peak_energy_index = headings.index("Energy (keV)")
         isotope_index = headings.index("Isotope")
@@ -87,8 +86,8 @@ class StandardsFileParser:
         return self.peaks
 
 class CSVWriter:
-    def __init__(self, projectID, originalFileName, headings, data):
-        self.fname = "./results/" + projectID + "/" + originalFileName.split('.')[0] + "_Analysis_Results.csv"
+    def __init__(self, projectID, fname, headings, data):
+        self.fname = "./results/" + projectID + "/" + fname
         self.headings = headings
         self.data = data
     def write(self):
@@ -96,7 +95,11 @@ class CSVWriter:
         f.seek(0)
         f.write(",".join(self.headings)+"\n")
         for line in self.data:
-            f.write(','.join([str(e) for e in line])+"\n")
+            try:
+                ld = [str(e) for e in line[0]]
+            except:
+                ld = [str(e) for e in line]
+            f.write(','.join(ld)+"\n")
         f.close()
 
 class ExcelWriter:
@@ -111,23 +114,23 @@ class ExcelWriter:
         ws = wb.active
         ws.title = "All Files"
         ws["A1"] = "Filename"
-        for i in range(len(self.headings)):
-            _ = ws.cell(row=1, column=i+2, value=self.headings[i])
+        for i in range(len(self.headings[0][0])):
+            _ = ws.cell(row=1, column=i+2, value=self.headings[0][0][i])
         rowCount = 1
         for i in range(len(self.allFilenames)):
-            for j in range(len(self.data[i])):
-                _ = ws.cell(row=rowCount, column=1, value=self.allFilenames[i])
-                for k in range(len(self.data[i][j])):
-                    _ = ws.cell(row=rowCount, column=k+2, value=self.data[i][j][k])
+            for j in range(len(self.data[i][0])):
+                _ = ws.cell(row=rowCount+1, column=1, value=self.allFilenames[i].split("\\")[-1])
+                for k in range(len(self.data[i][0][j])):
+                    _ = ws.cell(row=rowCount+1, column=k+2, value=self.data[i][0][j][k])
                 rowCount += 1
 
         for i in range(len(self.allFilenames)):
-            newWs = wb.create_sheet(self.allFilenames[i])
-            for i in range(len(self.headings)):
-                _ = newWs.cell(row=1, column=i+1, value=self.headings[i])
-            for j in range(len(self.data[i])):
-                for k in range(len(self.data[i][j])):
-                    _ = newWs.cell(row=j+2, column=k+1, value=self.data[i][j][k])
+            newWs = wb.create_sheet(self.allFilenames[i].split("\\")[-1][:31])
+            for l in range(len(self.headings[0][0])):
+                _ = newWs.cell(row=1, column=l+1, value=self.headings[0][0][l])
+            for j in range(len(self.data[i][0])):
+                for k in range(len(self.data[i][0][j])):
+                    _ = newWs.cell(row=j+2, column=k+1, value=self.data[i][0][j][k])
         
         wb.save(self.fname)
 
