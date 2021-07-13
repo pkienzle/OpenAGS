@@ -50,10 +50,103 @@
     <title>PGAA Data Analysis Window</title>
   </head>
   <body>
-    <script>filesList = {{analysisObject.fileList|safe}};</script>
+    <script>
+        filesList = {{analysisObject.fileList|safe}};
+        {% if analysisObject.delayed %}
+            var NAATimes = {{analysisObject.get_naa_times()|safe}};
+        {% endif %}
+    </script>
     <script src="/static/js/view.js"></script>
 
     <div id="container">
+        <div class="modal fade" id="errorModal" tabindex="-3" role="dialog" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="errorModalLabel">Error</h5>
+                </div>
+                <div class="modal-body">
+                  <p id="errorText"></p>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="modal fade" id="warningModal" tabindex="-2" role="dialog" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="warningModalLabel">Warning</h5>
+                </div>
+                <div class="modal-body">
+                  <p id="warningText"></p>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+                </div>
+              </div>
+            </div>
+        </div>
+
+        {% if analysisObject.delayed %}
+            <div class="modal fade" id="timeEntryModal" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Time Entry</h5>
+                    </div>
+                    <div class="modal-body">
+                        <div class="cotainer-flex">
+                            <div class="row">
+                                <div class="col-4">
+                                    <p>Filename</p>                                    
+                                </div>
+                                <div class="col-8">
+                                    <select id="timeFileSelect" onchange="updateShownTimes();">
+                                        {% for fname in analysisObject.fileList %}
+                                            <option value="{{fname}}">{{fname.split('\\')[-1]}}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">
+                                    <p>Irradiation Time (min)</p>
+                                </div>
+                                <div class="col-8">
+                                    <input class="form-control" id="irrTimeInput"/>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">
+                                    <p>Wait Time (min)</p>
+                                </div>
+                                <div class="col-8">
+                                    <input class="form-control" id="waitTimeInput"/>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">
+                                    <p>Count Time (min)</p>
+                                </div>
+                                <div class="col-8">
+                                    <input class="form-control" id="countTimeInput"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" onclick="sendNAATimes();">Update</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+                </div>
+            </div>
+        {% endif %}
+
         <div class="modal fade" id="compareSpectraModal" tabindex="-1" role="dialog" aria-hidden="true">
             <div class="modal-dialog modal-fullscreen" role="document">
               <div class="modal-content">
@@ -112,6 +205,7 @@
               </div>
             </div>
         </div>
+
         <div class="modal fade bd-example-modal-lg" id="updateROIModal" tabindex="-1" role="dialog" aria-hidden="true">
             <div class="modal-dialog modal-lg" role="document">
               <div class="modal-content">
@@ -158,6 +252,83 @@
             </div>
             </div>
         </div>
+        <div class="modal fade" id="updatePrefsModal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="updatePrefsLabel">Update Preferences</h5>
+                </div>
+                <div class="modal-body">
+                  <div class="container-flex">
+                      <div class="row">
+                          <div class="col-4">
+                              <p>Peak Type</p>
+                          </div>
+                          <div class="col-8">
+                              <select id="prefPeakType">
+                                {% for k in som["peaks"].keys() %}
+                                    <option {% if k == analysisObject.userPrefs['peak_type'] %} selected {% endif %} value="{{k}}">{{k}}</option>
+                                {% endfor %}
+                              </select>
+                          </div>
+                      </div>
+                      <div class="row">
+                        <div class="col-4">
+                            <p>Boron Peak Type</p>
+                        </div>
+                        <div class="col-8">
+                            <select id="prefBoronPeakType">
+                                {% for k in som["peaks"].keys() %}
+                                    <option {% if k == analysisObject.userPrefs['boron_peak_type'] %} selected {% endif %} value="{{k}}">{{k}}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-4">
+                            <p>Background Type</p>
+                        </div>
+                        <div class="col-8">
+                            <select id="prefBGType">
+                                {% for k in som["backgrounds"].keys() %}
+                                    <option {% if k == analysisObject.userPrefs['background_type'] %} selected {% endif %} value="{{k}}">{{k}}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-4">
+                            <p>ROI Width</p>
+                        </div>
+                        <div class="col-8">
+                            <input class="form-control" id="prefROIWidth" value="{{analysisObject.userPrefs['roi_width']}}"/>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-4">
+                            <p>B-11 ROI Width</p>
+                        </div>
+                        <div class="col-8">
+                            <input class="form-control" id="prefBoronROIWidth" value="{{analysisObject.userPrefs['B_roi_width']}}"/>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="overlapROICheck" {% if analysisObject.userPrefs["overlap_rois"] %}checked{% endif %}>
+                            <label class="form-check-label" for="overlapROICheck">
+                              Overlap ROIs
+                            </label>
+                        </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="">Submit</button>
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
         <div class="container-flex" style="width:98vw;">
         <div id="topbar" class="row">
             <div class="col-2">
@@ -165,11 +336,16 @@
             </div>
             <div class="col-6">
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#updateROIModal">Add/Edit ROIs</button>
+                {% if analysisObject.delayed %}
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#timeEntryModal">Edit Time Values</button>
+                {% endif %}
                 {% if analysisObject.resultsGenerated %}
                     <button class="btn btn-secondary" onclick="window.location.replace(window.location.href.replace('view', 'results'));">View Results</button>
                 {% endif %}
             </div>
-            <div class="col-4"></div>
+            <div class="col-4">
+                <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#updatePrefsModal">Settings</button>
+            </div>
         </div>
         <div class="row">
         <div id="mainCarousel" class="carousel slide" data-ride="carousel">
@@ -335,6 +511,17 @@
             }
         }
         updatePage(ps);
+        updateShownTimes();
+        function showErrorMessage(msg){
+            document.getElementById("errorText").innerText = msg;
+            var theModal = new bootstrap.Modal(document.getElementById("errorModal"));
+            theModal.show();
+        }
+        function showWarningMessage(msg){
+            document.getElementById("warningText").innerText = msg;
+            var theModal = new bootstrap.Modal(document.getElementById("warningModal"));
+            theModal.show();
+        }
     </script>
 </body>
 </html>

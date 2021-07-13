@@ -82,6 +82,7 @@
     <script src="/static/js/project.js"></script>
     <script>
         window.entryFields = {{analysisObject.get_all_entry_fields()|string|safe}};
+        window.unfittedRegions = {{analysisObject.get_unfitted_ROIs()|string|safe}};
         window.newPeaks = [];
         window.newBackgrounds = [];
         window.originalEnergyBounds = [];
@@ -133,6 +134,39 @@
             modeBarButtonsToRemove : ['select2d','lasso2d']
         };
     </script>
+
+    <div class="modal fade" id="errorModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="errorModalLabel">Error</h5>
+            </div>
+            <div class="modal-body">
+              <p id="errorText"></p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal fade" id="warningModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="warningModalLabel">Warning</h5>
+            </div>
+            <div class="modal-body">
+              <p id="warningText"></p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+    </div>
+
     <div class="modal fade" tabindex="-1" data-bs-backdrop="static" id="refreshPageModal">
         <div class="modal-dialog">
           <div class="modal-content">
@@ -171,6 +205,8 @@
               <h5 class="modal-title">Confirm Match Submission</h5>
             </div>
             <div class="modal-body">
+              <p id="confirmWarningText"></p>
+              <br>
               <p>If you have matched all peaks and would like to proceed, click "Submit". If you have opened this in error click "Close" to return to the analysis.</p>
             </div>
             <div class="modal-footer">
@@ -421,6 +457,9 @@
         }
         function showConfirmModal(){
             var modal = new bootstrap.Modal(document.getElementById("confirmSubmitModal"));
+            if(window.unfittedRegions.length > 0){
+                document.getElementById("confirmWarningText").innerText = "Unfitted Regions: "+ GUIregions.toString()+". These either don't have a fit or couldn't determine standard error.";
+            }
             modal.show();
         }
         function showRedirectModal(){
@@ -428,6 +467,20 @@
             modal.show();
         }
         updatePage(ps);
+        function showErrorMessage(msg){
+            document.getElementById("errorText").innerText = msg;
+            var theModal = new bootstrap.Modal(document.getElementById("errorModal"));
+            theModal.show();
+        }
+        function showWarningMessage(msg){
+            document.getElementById("warningText").innerText = msg;
+            var theModal = new bootstrap.Modal(document.getElementById("warningModal"));
+            theModal.show();
+        }
+        if(window.unfittedRegions.length > 0){
+            GUIregions = window.unfittedRegions.map(x => x+1);
+            showWarningMessage("Unfitted Regions: "+ GUIregions.toString()+". These either don't have a fit or couldn't determine standard error. Please reanalyze them.");
+        }
     </script>
   </body>
 </html>

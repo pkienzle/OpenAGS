@@ -128,12 +128,15 @@ class GaussianPeak(StandardPeak):
         return "Gaussian: Center " + str(round(float(self.ctr), decimals=1)) + " keV"
 
 class KuboSakaiBoronPeak(BoronPeak):
-    def __init__(self, E0=477.6, N0=1, D=1, delta=1):
+    def __init__(self, E0=477.6, N0=1, D=1, delta=1, variances = []):
         super().__init__()
         self.E0 = E0
         self.N0 = N0
         self.D = D
         self.delta = delta
+        self.originalParams = [E0,N0,D,delta]
+        self.variances = variances
+        self.originalVariances = variances
 
     @staticmethod
     def guess_params(xdata, ydata):

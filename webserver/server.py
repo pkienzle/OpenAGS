@@ -56,7 +56,7 @@ async def project(projectID, action):
             analysisObject.get_fitted_ROIs()
         return await(render_template("project.html", analysisObject=analysisObject, projectID=projectID))
     elif action == "view":
-        return await(render_template("view.html", analysisObject=analysisObject, projectID=projectID))
+        return await(render_template("view.html", analysisObject=analysisObject, projectID=projectID, som=som))
     elif action == "results":
         return await(render_template("results.html", analysisObject=analysisObject, projectID=projectID))
     else: 
@@ -72,20 +72,28 @@ async def create():
         upload_path = "D:\\CyPat\\OpenAGS\\webserver\\uploads"
         projectID = str(uuid.uuid4())
         #TODO: aiofiles.os.mkdir not working for some reason. Debug this
+        
         os.mkdir(os.path.join(upload_path,projectID))
         os.mkdir(os.path.join(os.getcwd(), "results\\"+projectID))
+
         uploaded_files = await request.files  
         form = await request.form      
         files_list = uploaded_files.getlist("file")
-        standardsFilename = os.getcwd()+"\\AllSensitivity.csv"
+        try:
+            standardsFile = uploaded_files.get("standardsFile")
+            standardsFilename = os.path.join(upload_path,projectID,secure_filename(standardsFile.filename))
+            await standardsFile.save(standardsFilename)
+        except:
+            standardsFilename = os.getcwd()+"\\AllSensitivity.csv"
+    
         filenamesList = []
         for f in files_list:
-            if f.filename[-4:] == ".csv":
-                standardsFilename = os.path.join(upload_path,projectID,secure_filename(f.filename))
-            else:
-                filenamesList.append(os.path.join(upload_path,projectID,secure_filename(f.filename)))
+            filenamesList.append(os.path.join(upload_path,projectID,secure_filename(f.filename)))
             p = os.path.join(upload_path,projectID,secure_filename(f.filename))
             await f.save(p)
+        
+        print(form.get("analysisType"))
+        delayed = form.get("analysisType") == "delayed"
 
         async with AIOTinyDB("projectDB.json") as projectDB:
             projectDB.insert({
@@ -95,7 +103,9 @@ async def create():
                 "standardsFilename" : standardsFilename,
                 "ROIsFitted" : False,
                 "ROIs" : [],
-                "resultsGenerated" : False
+                "resultsGenerated" : False,
+                "delayed" : delayed,
+                "NAATimes" : [[] for i in range(len(filenamesList))]
             })
         return json.dumps({"id" : projectID})
 
@@ -181,7 +191,6 @@ async def ws(projectID):
                     bgParams = bg[1:]
                     ROI.set_background(som["backgrounds"][bgType](*bgParams))
                 ROI.fit()
-                print("fitted!")
                 outputObj = {
                     "type" : "ROIUpdate",
                     "index" : dataDict["index"],
@@ -206,7 +215,15 @@ async def ws(projectID):
             
             elif dataDict["type"] == "entryReprRequest":
                 analysisObject = activeProjects[projectID]["analysisObject"]
-                stringRepr, params = analysisObject.get_entry_repr(dataDict["class"],dataDict["name"],dataDict["ROIIndex"],dataDict["entryParams"])
+                entryParams = []
+                try:
+                    entryParams = [float(x) for x in dataDict["entryParams"]]
+                except:
+                    ws.send(json.dumps({"type" : "error", "text":"Please enter only numbers for peak paramaters."}))
+                try:
+                    stringRepr, params = analysisObject.get_entry_repr(dataDict["class"],dataDict["name"],dataDict["ROIIndex"],entryParams)
+                except:
+                    ws.send(json.dumps({"type" : "error", "text":"Your peak is outside the ROI bounds."}))
                 outputObj = {
                     "type" : "entryReprResponse",
                     "class" : dataDict["class"],
@@ -217,7 +234,6 @@ async def ws(projectID):
                 }
                 for queue in activeProjects[projectID]["webSockets"]:
                     await queue.put(json.dumps(outputObj))
-
             elif dataDict["type"] == "matchUpdate":
                 #just echo back to all
                 for queue in activeProjects[projectID]["webSockets"]:
@@ -229,6 +245,11 @@ async def ws(projectID):
                     analysisObject.set_title(dataDict["newTitle"])
                     for queue in activeProjects[projectID]["webSockets"]:
                         await queue.put(data)
+            elif dataDict["type"] == "NAATimeUpdate":
+                analysisObject = activeProjects[projectID]["analysisObject"]
+                analysisObject.fileData[dataDict["fileIndex"]]["NAATimes"] = dataDict["times"]
+                for queue in activeProjects[projectID]["webSockets"]:
+                    await queue.put(data)
             elif dataDict["type"] == "isotopeUpdate":
                 analysisObject = activeProjects[projectID]["analysisObject"]
                 analysisObject.update_ROIs(dataDict["addedIsotopes"], dataDict["removedIsotopes"])

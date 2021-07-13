@@ -37,6 +37,9 @@ ws.onmessage = function (event) {
                 mode : "markers",
                 name : "Data"
             }
+            if(data.fitted && window.unfittedRegions.indexOf(data.index) !== -1){
+                window.unfittedRegions.splice(window.unfittedRegions.indexOf(data.index), 1);
+            }
 
             var bgList = document.getElementById("fittedBgList-"+data.index.toString());
             bgList.innerHTML = "<li class='list-group-item compact' id=\""+ data.bgString +"\"><p class = 'bg-label'>"+ data.bgString +"</p>";
@@ -180,8 +183,6 @@ function reanalyze(i){
     var newPeaksToAdd = [];
     for(j=0;j<peaks.length;j++){
         peak = peaks[j].innerText;
-        console.log(peak);
-        console.log(window.newPeaks[i].hasOwnProperty(peak));
         if(window.newPeaks[i].hasOwnProperty(peak)){
             newPeaksToAdd.push(window.newPeaks[i][peak]);
         }
@@ -193,8 +194,12 @@ function reanalyze(i){
     
     outputObject = {"type" : "ROIUpdate","index":i};
     var entryList = document.getElementById("editRangeList-"+i.toString()).getElementsByTagName("input");
-    if(entryList[0].value != window.originalEnergyBounds[i][0]|| entryList[1].value != window.originalEnergyBounds[i][1]){
-        outputObject["newRange"] = [parseFloat(entryList[0].value), parseFloat(entryList[1].value)];
+    if(entryList[0].value != window.originalEnergyBounds[i][0] || entryList[1].value != window.originalEnergyBounds[i][1]){
+        try {
+            outputObject["newRange"] = [parseFloat(entryList[0].value), parseFloat(entryList[1].value)];
+        } catch (error) {
+            return showErrorMessage("Please enter decimal numbers for the range.")
+        }
     }
     if(existingPeaksToKeep !== []){
         outputObject["existingPeaks"] = existingPeaksToKeep;

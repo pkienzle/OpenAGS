@@ -254,8 +254,13 @@ function zoomToRegion(i){
 }
 
 function updateRange(i){
-    var minEnergy = parseFloat(document.getElementById("minEnergyInput-"+i.toString()).value);
-    var maxEnergy = parseFloat(document.getElementById("maxEnergyInput-"+i.toString()).value);
+    try {
+        var minEnergy = parseFloat(document.getElementById("minEnergyInput-"+i.toString()).value);
+        var maxEnergy = parseFloat(document.getElementById("maxEnergyInput-"+i.toString()).value);
+    } catch (error) {
+        showErrorMessage("Please enter decimal numbers for the data range.");
+    }
+    
     var plot = document.getElementById("file-"+i.toString());
     var lowerIndex = findClosest(plot.data[0].x, minEnergy);
     var upperIndex = findClosest(plot.data[0].x, maxEnergy);
@@ -271,7 +276,6 @@ function updateRange(i){
             range : [0, Math.max(...dataRange)*1.5]
         }
     };
-    console.log(myLayout);
     Plotly.relayout(plot, myLayout);
 }
 
@@ -333,6 +337,13 @@ function applyFilter(){
     }
 }
 
+function updateShownTimes(){
+    var times = NAATimes[filesList.indexOf(document.getElementById("timeFileSelect").value)];
+    document.getElementById("irrTimeInput").value = times[0].toString();
+    document.getElementById("waitTimeInput").value = times[1].toString();
+    document.getElementById("countTimeInput").value = times[2].toString();
+}
+
 var wsUrl = window.location.href.toString().replace("http","ws").replace("view","ws");
 var ws = new WebSocket(wsUrl);
 ws.onmessage = function (event) {
@@ -362,7 +373,9 @@ ws.onmessage = function (event) {
             }
 
             break;
-        
+        case "NAATimeUpdate":
+            NAATimes[data.fileIndex] = data.times;
+            break;
     }
 };
 
@@ -383,6 +396,24 @@ function submitROIs(){
     }
     ws.send(JSON.stringify(wsObj));
 }
+
+function sendNAATimes(){
+    try {
+        var irrTime = parseFloat(document.getElementById("irrTimeInput").value);
+        var waitTime = parseFloat(document.getElementById("waitTimeInput").value);
+        var countTime = parseFloat(document.getElementById("countTimeInput").value);
+    } catch (error) {
+        showErrorMessage("Please enter times as floats.");
+    }
+    var allTimes = [irrTime, waitTime, countTime];
+    var wsObj = {
+        "type" : "NAATimeUpdate",
+        "fileIndex" : filesList.indexOf(document.getElementById("timeFileSelect").value),
+        "times" : allTimes
+    };
+    ws.send(JSON.stringify(wsObj));
+}
+
 function updateTitle(){
     var newTitle = document.getElementById("cdTitle").value;
     ws.send('{"type":"titleUpdate","newTitle":"'+newTitle+'"}');

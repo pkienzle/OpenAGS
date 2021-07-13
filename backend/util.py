@@ -14,9 +14,12 @@ import itertools
 from sigfig import round
 
 class KnownPeak:
-    def __init__(self, elementName, center, unit = "mg", sensitivity=None, mass=None):
+    def __init__(self, elementName, center, unit = "mg", sensitivity=None, mass=None, halfLife = None, decayConstant = None, decayUnit="min"):
         self.elementName = elementName
         self.center = center
+        self.delayed = True
+
+
         if sensitivity != None and mass != None:
             raise TypeError("Please provide no more than 1 of the following: mass, sensitivity")
         if mass != None:
@@ -28,6 +31,23 @@ class KnownPeak:
         else:
             self.divisor = None
             self.output = "Area (cps)"
+        
+        if halfLife != None and decayConstant != None:
+            raise TypeError("Please provide no more than 1 of the following: half-life, decay constant")
+        elif halfLife != None:
+            self.decayConstant = math.log(2) / halfLife
+        elif decayConstant != None:
+            self.decayConstant = decayConstant
+        else:
+            self.delayed = False
+
+        if self.delayed:
+            if decayUnit == "s":
+                self.decayConstant *= 60
+            if decayUnit in ("h", "hr"):
+                self.decayConstant /=60
+
+
     def export_to_dict(self):
         if self.divisor != None:
             return {
@@ -41,6 +61,12 @@ class KnownPeak:
                 "ele" : self.elementName,
                 "ctr" : self.center
             }
+    
+    def set_delay_times(self, irr, wait, count):
+        self.irrTime = irr
+        self.waitTime = wait
+        self.countTime = count
+
     def set_divisor_output(self,divisor,output):
         self.divisor = divisor
         self.output = output
@@ -53,10 +79,15 @@ class KnownPeak:
         return self.elementName + " : " + str(round(float(self.center), decimals=1))
     def get_output(self):
         return self.output
+    def get_tcf(self):
+        if self.delayed:
+            return (1 - math.e ** (-1 * self.decayConstant * self.irrTime)) * math.e ** (-1 * self.decayConstant * self.waitTime) * (1 - math.e ** (-1 * self.decayConstant * self.countTime))
+        else:
+            return 1
     def get_results(self, area, areaStdev):
         if self.divisor == None:
-            return [area, areaStdev]
-        return [area/self.divisor, areaStdev/self.divisor]
+            return [area/self.get_tcf(), areaStdev/self.get_tcf()]
+        return [area/self.divisor/self.get_tcf(), areaStdev/self.divisor/self.get_tcf()]
 
 def multiple_peak_and_background(peaks, background, x, params):
         y = np.zeros_like(x)
@@ -74,19 +105,26 @@ def multiple_peak_and_background(peaks, background, x, params):
 def set_all_params(peaks, background, params, variances, reanalyze):
     leftCounter = 0
     rightCounter = background.get_num_params()
+
+    noVars = (variances[0] == np.inf) or (variances[0] == -1 * np.inf)
+
     background.set_params(params[leftCounter:rightCounter])
-    background.set_variances(variances[leftCounter:rightCounter])
+    if not noVars:
+        background.set_variances(variances[leftCounter:rightCounter])
     if not reanalyze:
         background.set_original_params(params[leftCounter:rightCounter])
-        background.set_original_variances(variances[leftCounter:rightCounter])
+        if not noVars:
+            background.set_original_variances(variances[leftCounter:rightCounter])
     for peak in peaks:
         leftCounter = rightCounter
         rightCounter = leftCounter + peak.get_num_params()
         peak.set_params(params[leftCounter:rightCounter])
-        peak.set_variances(variances[leftCounter:rightCounter])
+        if not noVars:
+            peak.set_variances(variances[leftCounter:rightCounter])
         if not reanalyze:
             peak.set_original_params(params[leftCounter:rightCounter])
-            peak.set_original_variances(variances[leftCounter:rightCounter])
+            if not noVars:
+                peak.set_original_variances(variances[leftCounter:rightCounter])
 
 def get_curve(peaks, background, x):
     y = np.zeros_like(x)

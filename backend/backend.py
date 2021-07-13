@@ -19,6 +19,7 @@ class ActivationAnalysis:
         self.ROIsFitted = False
         self.resultsGenerated = False
         self.delayed = False
+
     def load_from_dict(self, stored_data):
         if "userPrefs" in stored_data.keys():
             self.userPrefs = stored_data["userPrefs"]
@@ -41,32 +42,34 @@ class ActivationAnalysis:
                 self.fileData[i]["results"] = stored_data["results"][i]
                 self.fileData[i]["resultHeadings"] = stored_data["resultHeadings"]
                 self.fileData[i]["evaluatorNames"] = stored_data["evaluatorNames"]
+        self.delayed = stored_data["delayed"]
+        if self.delayed and "NAATimes" in stored_data.keys():
+            for i in range(len(stored_data["NAATimes"])):
+                self.fileData[i]["NAATimes"] = stored_data["NAATimes"][i]
 
 
     def export_to_dict(self):
         exportROIs = [r.export_to_dict() for r in self.ROIs]
-        if self.resultsGenerated:
-            return {
+        outDict =  {
             "userPrefs" : self.userPrefs,
             "title" : self.title,
             "files" : self.fileList,
             "standardsFilename" : self.standardsFilename,
             "ROIsFitted" : self.ROIsFitted,
             "ROIs" : exportROIs,
-            "resultsGenerated" : True,
-            "results": [fd["results"] for fd in self.fileData],
-            "resultHeadings": self.fileData[0]["resultHeadings"],
-            "evaluatorNames": self.fileData[0]["evaluatorNames"] 
-            }
-        return {
-            "userPrefs" : self.userPrefs,
-            "title" : self.title,
-            "files" : self.fileList,
-            "standardsFilename" : self.standardsFilename,
-            "ROIsFitted" : self.ROIsFitted,
-            "ROIs" : exportROIs,
-            "resultsGenerated" : False
+            "resultsGenerated" : self.resultsGenerated,
+            "delayed" : self.delayed
         }
+
+        if self.resultsGenerated:
+            outDict["results"] = [fd["results"] for fd in self.fileData]
+            outDict["resultHeadings"] = self.fileData[0]["resultHeadings"]
+            outDict["evaluatorNames"] = self.fileData[0]["evaluatorNames"]
+
+        if self.delayed and "NAATimes" in self.fileData[0].keys():
+            outDict["NAATimes"] = [fd["NAATimes"] for fd in self.fileData]
+            
+        return outDict
 
     def add_files(self, files):
         self.fileList = files
@@ -77,14 +80,27 @@ class ActivationAnalysis:
         l = StandardsFileParser(standardsFilename).extract_peaks()
         for p in l:
             self.knownPeaks[str(p.get_ctr())] = p
+
     def get_known_peaks(self):
         return self.knownPeaks
+    
     def get_title(self):
         return self.title
+    
     def set_title(self, newTitle):
         self.title = newTitle
+    
+    def set_delayed_times(self, i, irr, wait, count):
+        self.fileData[i]["NAATimes"] = [irr, wait, count]
+
     def get_all_isotopes(self):
         return set([self.knownPeaks[key].get_ele() for key in self.knownPeaks.keys()])
+    
+    def get_naa_times(self):
+        return [fd["NAATimes"] for fd in self.fileData]
+    
+    def get_unfitted_ROIs(self):
+        return [i for i in range(len(self.ROIs)) if not self.ROIs[i].fitted]
 
     def update_ROIs(self, addedIsotopes, removedIsotopes = []):
         rmvLst = []
@@ -188,6 +204,9 @@ class ActivationAnalysis:
                 energies = self.fileData[i]["energies"]
                 cps = self.fileData[i]["cps"]
                 for r in self.ROIs:
+                    if self.delayed:
+                        for kp in r.get_known_peaks():
+                            kp.set_delay_times(*self.fileData[i]["NAATimes"])
                     bounds = r.get_range()
                     lowerIndex = binary_search_find_nearest(energies, bounds[0])
                     upperIndex = binary_search_find_nearest(energies, bounds[1])
@@ -213,11 +232,7 @@ class ROI:
         self.boronROI = boronROI
 
     def load_from_dict(self, stored_data):
-        self.peaks = [som["peaks"][p["type"]](*p["params"]) for p in stored_data["peaks"]]
-        for i in range(len(self.peaks)):
-            self.peaks[i].set_original_params(stored_data["peaks"][i]["params"])
-            self.peaks[i].set_variances(stored_data["peaks"][i]["variances"])
-            self.peaks[i].set_original_variances(stored_data["peaks"][i]["variances"])
+        self.peaks = [som["peaks"][p["type"]](*p["params"], variances=p["variances"]) for p in stored_data["peaks"]]
         self.bg = som["backgrounds"][stored_data["background"]["type"]](*stored_data["background"]["params"],variances=stored_data["background"]["variances"])
         self.fitted = (self.peaks[0].get_variances()[0] != None)
         for kp in stored_data["knownPeaks"]:
@@ -227,7 +242,7 @@ class ROI:
                     knownPeakObj.set_divisor_output(kp["divisor"], kp["output"])
                 self.knownPeaks.append(knownPeakObj)
     def export_to_dict(self):
-        exportPeaks = [{"type" : p.get_type(), "params" : p.get_original_params(), "variances": p.get_original_variances()}for p in self.peaks]
+        exportPeaks = [{"type" : p.get_type(), "params" : p.get_original_params(), "variances": p.get_original_variances()} for p in self.peaks]
         exportBackground = {"type" : self.bg.get_type(), "params" : self.bg.get_original_params(), "variances": self.bg.get_original_variances()}
         exportKnownPeaks = [kp.export_to_dict() for kp in self.knownPeaks]
         return {
