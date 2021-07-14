@@ -1,108 +1,3 @@
-var linearScaleIcon = {
-    'name' : "linear-scale",
-    'svg' : '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="isolation:isolate" viewBox="0 0 100 100" width="100pt" height="100pt"><defs><clipPath id="_clipPath_PryGnnTZIQ4lIJ2Dby2iX67e7hrcObL8"><rect width="100" height="100"/></clipPath></defs><g clip-path="url(#_clipPath_PryGnnTZIQ4lIJ2Dby2iX67e7hrcObL8)"><line x1="9" y1="8" x2="8" y2="92" vector-effect="non-scaling-stroke" stroke-width="3" stroke="rgb(0,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/><line x1="8" y1="92" x2="92" y2="92" vector-effect="non-scaling-stroke" stroke-width="3" stroke="rgb(0,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/><line x1="11" y1="89" x2="92" y2="7" vector-effect="non-scaling-stroke" stroke-width="2" stroke="rgb(255,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/></g></svg>'
-};
-var logScaleIcon = {
-    'name' : 'log-scale',
-    'svg' : '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="isolation:isolate" viewBox="0 0 100 100" width="100pt" height="100pt"><defs><clipPath id="_clipPath_yr8WnDDLyZc7YlyCSm2ThMbIIFAQCXIn"><rect width="100" height="100"/></clipPath></defs><g clip-path="url(#_clipPath_yr8WnDDLyZc7YlyCSm2ThMbIIFAQCXIn)"><line x1="9" y1="8" x2="8" y2="92" vector-effect="non-scaling-stroke" stroke-width="3" stroke="rgb(0,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/><line x1="8" y1="92" x2="92" y2="92" vector-effect="non-scaling-stroke" stroke-width="3" stroke="rgb(0,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/><path d=" M 10 90 L 13.644 80.862 L 20.933 67.662 L 32.778 53.446 L 48.267 39.231 L 64.667 30.092 L 80.156 25.015 L 92 24" fill="none" vector-effect="non-scaling-stroke" stroke-width="2" stroke="rgb(255,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/></g></svg>'
-};
-var universalPlotConfig = {
-    responsive : true,
-    modeBarButtonsToAdd : [
-        {
-            "name" : "Linear Scale",
-            "icon" : linearScaleIcon,
-            click : function(gd){
-                if(gd.data.length === 1){
-                    var newLayout = {
-                        yaxis: {
-                            type: 'linear',
-                            title: "Counts Per Second",
-                            autorange: true
-                        }
-                    }
-                }
-                else if(gd.data.length === 2){
-                    var newLayout = {
-                        yaxis: {
-                            type: 'linear',
-                            title: "Counts Per Second",
-                            autorange: true
-                        },
-                        yaxis2: {
-                            type: 'linear',
-                            autorange: true,
-                            domain: [0, 1],
-                            anchor: "x2"
-                        }
-                    }
-                }
-                Plotly.relayout(gd,newLayout)
-            }
-        },
-        {
-            "name" : "Log Scale",
-            "icon" : logScaleIcon,
-            click : function(gd){
-                if(gd.data.length === 1){
-                    var newLayout = {
-                        yaxis: {
-                            type: 'log',
-                            title: "Counts Per Second",
-                            autorange: true
-                        }
-                    }
-                }
-                else if(gd.data.length === 2){
-                    var newLayout = {
-                        yaxis: {
-                            type: 'log',
-                            title: "Counts Per Second",
-                            autorange: true
-                        },
-                        yaxis2: {
-                            type: 'log',
-                            autorange: true,
-                            domain: [0, 1],
-                            anchor: "x2"
-                        }
-                    }
-                }
-                Plotly.relayout(gd,newLayout)
-            }
-        }
-    ],
-    modeBarButtonsToRemove : ['select2d','lasso2d']
-};
-function findClosest(arr, target)
-{
-    let n = arr.length;
- 
-    // Corner cases
-    if (target <= arr[0])
-        return arr[0];
-    if (target >= arr[n - 1])
-        return arr[n - 1];
-    let l = 0;
-    let u = n;
-    let i = Math.floor((l+u)/2);
-    while(target < arr[i-1] || target > arr[i+1]){
-        if(target > arr[i]){
-            l = i + 1;
-        }
-        else if(target < arr[i]){
-            u = i - 1;
-        }
-        else{
-            return i;
-        }
-        i = Math.floor((l+u)/2);
-        if(i <= 2 || i >= n - 2){
-            break;
-        }
-    }
-    return i;
-}
 function updateCompareModal(){
     var file1 = document.getElementById("file1Select").value;
     var file2 = document.getElementById("file2Select").value;
@@ -222,6 +117,8 @@ function zoomToRegion(i){
     if(selectObject.value === ""){
         var plot = document.getElementById("file-"+i.toString());
         var xdata = plot.data[0].x
+        document.getElementById("minEnergyInput-"+i.toString()).value = xdata[0];
+        document.getElementById("maxEnergyInput-"+i.toString()).value = xdata[xdata.length - 1];
         var newLayout = {
             xaxis : {
                 title: plot.layout.xaxis.title,
@@ -234,34 +131,37 @@ function zoomToRegion(i){
             }
         };
     }
-    var values = selectObject.value.split(",");
-    var plot = document.getElementById("file-"+i.toString());
-    var dataRange = plot.data[0].y.slice(parseInt(values[2]), parseInt(values[3]));
-    document.getElementById("minEnergyInput-"+i.toString()).value = values[0];
-    document.getElementById("maxEnergyInput-"+i.toString()).value = values[1];
-    var newLayout = {
-        xaxis : {
-            title: plot.layout.xaxis.title,
-            range: [parseFloat(values[0]), parseFloat(values[1])]
-        },
-        yaxis : {
-            title: plot.layout.yaxis.title,
-            type : plot.layout.yaxis.type,
-            range : [0, Math.max(...dataRange)*1.1]
-        }
-    };
+    else{
+        var values = selectObject.value.split(",");
+        var plot = document.getElementById("file-"+i.toString());
+        var dataRange = plot.data[0].y.slice(parseInt(values[2]), parseInt(values[3]));
+        document.getElementById("minEnergyInput-"+i.toString()).value = values[0];
+        document.getElementById("maxEnergyInput-"+i.toString()).value = values[1];
+        var newLayout = {
+            xaxis : {
+                title: plot.layout.xaxis.title,
+                range: [parseFloat(values[0]), parseFloat(values[1])]
+            },
+            yaxis : {
+                title: plot.layout.yaxis.title,
+                type : plot.layout.yaxis.type,
+                range : [0, Math.max(...dataRange)*1.1]
+            }
+        };
+    }
     Plotly.relayout(plot, newLayout);
 }
 
 function updateRange(i){
-    try {
-        var minEnergy = parseFloat(document.getElementById("minEnergyInput-"+i.toString()).value);
-        var maxEnergy = parseFloat(document.getElementById("maxEnergyInput-"+i.toString()).value);
-    } catch (error) {
-        showErrorMessage("Please enter decimal numbers for the data range.");
-    }
-    
+    var minEnergy = parseFloat(document.getElementById("minEnergyInput-"+i.toString()).value);
+    var maxEnergy = parseFloat(document.getElementById("maxEnergyInput-"+i.toString()).value);
     var plot = document.getElementById("file-"+i.toString());
+    if(isNaN(minEnergy) || isNaN(maxEnergy) || maxEnergy <= minEnergy){
+        var range = plot.layout.xaxis.range;
+        document.getElementById("minEnergyInput-"+i.toString()).value = range[0].toString();
+        document.getElementById("maxEnergyInput-"+i.toString()).value = range[1].toString();
+        return showErrorMessage("Please enter decimal numbers for the data range, with Max. Energy > Min. Energy.");
+    }
     var lowerIndex = findClosest(plot.data[0].x, minEnergy);
     var upperIndex = findClosest(plot.data[0].x, maxEnergy);
     var dataRange = plot.data[0].y.slice(lowerIndex, upperIndex);
@@ -376,6 +276,9 @@ ws.onmessage = function (event) {
         case "NAATimeUpdate":
             NAATimes[data.fileIndex] = data.times;
             break;
+        case "error":
+            showErrorMessage(data.text);
+            break;
     }
 };
 
@@ -398,12 +301,11 @@ function submitROIs(){
 }
 
 function sendNAATimes(){
-    try {
-        var irrTime = parseFloat(document.getElementById("irrTimeInput").value);
-        var waitTime = parseFloat(document.getElementById("waitTimeInput").value);
-        var countTime = parseFloat(document.getElementById("countTimeInput").value);
-    } catch (error) {
-        showErrorMessage("Please enter times as floats.");
+    var irrTime = parseFloat(document.getElementById("irrTimeInput").value);
+    var waitTime = parseFloat(document.getElementById("waitTimeInput").value);
+    var countTime = parseFloat(document.getElementById("countTimeInput").value);
+    if(isNaN(irrtime) || isNaN(waitTime) ||isNaN(countTime)){
+        return showErrorMessage("Please enter times as numbers, in minutes.");
     }
     var allTimes = [irrTime, waitTime, countTime];
     var wsObj = {
@@ -411,6 +313,27 @@ function sendNAATimes(){
         "fileIndex" : filesList.indexOf(document.getElementById("timeFileSelect").value),
         "times" : allTimes
     };
+    ws.send(JSON.stringify(wsObj));
+}
+
+function sendPrefUpdates(){
+    var ROIWidth = document.getElementById("prefROIWidth");
+    var boronROIWidth = document.getElementById("prefBoronROIWidth");
+    if(isNaN(ROIWidth) || isNaN(boronROIWidth) || ROIWidth < 0 || boronROIWidth < 0){
+        return showErrorMessage("Please enter ROI widths as positive numbers.")
+    }
+    var peakType = document.getElementById("prefPeakType").value;
+    var boronPeakType = document.getElementById("prefBoronPeakType").value;
+    var bgType = document.getElementById("prefBGType").value;
+    var overlapROIs = document.getElementById("overlapROICheck").checked;
+    wsObj = {
+        "ROIWidth" : ROIWidth,
+        "boronROIWidth " : boronROIWidth,
+        "peakType" : peakType,
+        "boronPeakType" : boronPeakType,
+        "bgType" : bgType,
+        "overlapROIs" : overlapROIs
+    }
     ws.send(JSON.stringify(wsObj));
 }
 

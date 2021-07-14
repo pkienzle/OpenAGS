@@ -79,7 +79,7 @@ class ActivationAnalysis:
         self.standardsFilename = standardsFilename
         l = StandardsFileParser(standardsFilename).extract_peaks()
         for p in l:
-            self.knownPeaks[str(p.get_ctr())] = p
+            self.knownPeaks[p.get_ctr()] = p
 
     def get_known_peaks(self):
         return self.knownPeaks
@@ -96,16 +96,28 @@ class ActivationAnalysis:
     def get_all_isotopes(self):
         return set([self.knownPeaks[key].get_ele() for key in self.knownPeaks.keys()])
     
+    def get_known_annots(self):
+        return [[[kp.get_ctr(), kp.get_ele()] for kp in r.peaksInRegion] for r in self.ROIs]
+    
     def get_naa_times(self):
         return [fd["NAATimes"] for fd in self.fileData]
     
     def get_unfitted_ROIs(self):
         return [i for i in range(len(self.ROIs)) if not self.ROIs[i].fitted]
+    
+    def set_user_prefs(self, newPrefs):
+        for k in newPrefs.keys():
+            self.userPrefs[k] = newPrefs[k]
 
     def update_ROIs(self, addedIsotopes, removedIsotopes = []):
         rmvLst = []
         editList = []
         alreadyAdded = []
+
+        if addedIsotopes == [] and removedIsotopes == []:
+            return None
+        else:
+            self.ROIsFitted = False
 
         for iso in addedIsotopes:
             if iso in self.isotopes:
@@ -124,26 +136,36 @@ class ActivationAnalysis:
 
         for r in self.ROIs:
             isotopes = r.get_isotopes()
-            removed = len(list(filter(lambda x: x in removedIsotopes, isotopes)))
+            removed = len([x for x in isotopes if x in removedIsotopes])
             if removed == len(isotopes):
                 rmvLst.append(r)
             elif removed > 0:
                 editList += [kp.get_ctr() for kp in r.get_known_peaks]
         
+        for r in rmvLst:
+            self.ROIs.remove(r)
+
         regions = []
         peaks = []
-        for k in sorted(self.knownPeaks.keys(), key=float):
+        otherPeaks = []
+
+        sortedKeys = sorted(self.knownPeaks.keys())
+
+        for k in sortedKeys:
             p = self.knownPeaks[k]
             if p.get_ele() in addedIsotopes or p.get_ctr() in editList:
                 if p.get_ele() == "B-11":
-                    regions.append(max(p.get_ctr() - self.userPrefs["B_roi_width"], 0))
-                    regions.append(min(p.get_ctr() + self.userPrefs["B_roi_width"], self.fileData[0]["energies"][-1]))
+                    lowerBound = max(p.get_ctr() - self.userPrefs["B_roi_width"], 0)
+                    upperBound = min(p.get_ctr() + self.userPrefs["B_roi_width"], self.fileData[0]["energies"][-1])
                 else:
-                    #TODO: expand region to include boron peak
-                    regions.append(max(p.get_ctr() - self.userPrefs["roi_width"], 0))
-                    regions.append(min(p.get_ctr() + self.userPrefs["roi_width"], self.fileData[0]["energies"][-1]))
+                    lowerBound = max(p.get_ctr() - self.userPrefs["roi_width"], 0)
+                    upperBound = min(p.get_ctr() + self.userPrefs["roi_width"], self.fileData[0]["energies"][-1])
+                
+                regions.append(lowerBound)
+                regions.append(upperBound)
                 
                 peaks.append([p])
+                otherPeaks.append([self.knownPeaks[e] for e in sortedKeys[binary_search_find_nearest(sortedKeys, lowerBound):binary_search_find_nearest(sortedKeys, upperBound)]])
 
         if self.userPrefs["overlap_rois"]:
             i=0
@@ -153,6 +175,8 @@ class ActivationAnalysis:
                     del regions[i]
                     peaks[i//2] += peaks[i//2+1]
                     del peaks[i//2+1]
+                    otherPeaks[i//2] += otherPeaks[i//2+1]
+                    del otherPeaks[i//2+1]
                 else:
                     i += 1
 
@@ -162,15 +186,16 @@ class ActivationAnalysis:
             lowerIndex = binary_search_find_nearest(energies, regions[i])
             upperIndex = binary_search_find_nearest(energies, regions[i+1])
             r = ROI(energies[lowerIndex:upperIndex],cps[lowerIndex:upperIndex], [lowerIndex, upperIndex], "B-11" in [p.get_ele() for p in peaks[i//2]] and not self.delayed, self.userPrefs)
-            r.set_known_peaks(peaks[i//2])
+            r.set_known_peaks(peaks[i//2], otherPeaks[i//2])
             self.ROIs.append(r)
         self.ROIs = sorted(self.ROIs, key=lambda x:x.get_range()[0])
 
     def get_fitted_ROIs(self):
         for ROI in self.ROIs:
-            ROI.add_peaks()
-            ROI.add_bg()
-            ROI.fit()
+            if not ROI.fitted:
+                ROI.add_peaks()
+                ROI.add_bg()
+                ROI.fit()
         self.ROIsFitted = True
         return self.ROIs
 
@@ -185,7 +210,7 @@ class ActivationAnalysis:
     def get_entry_repr(self, model, name, ROIIndex, params):
         if model == "peaks":
             testObj = som[model][name]()
-            testObj.handle_entry(params)
+            testObj.handle_entry(params, bounds=self.ROIs[ROIIndex].get_range())
             return testObj.to_string(), testObj.get_params()
         elif model == "backgrounds":
             tmpObj = som[model][name].guess_params(self.ROIs[ROIIndex].get_energies(), self.ROIs[ROIIndex].get_cps())
@@ -224,6 +249,7 @@ class ROI:
         self.range = (energies[0], energies[-1])
         self.cps = cps
         self.knownPeaks = []
+        self.peaksInRegion = []
         self.userPrefs = userPrefs
         self.indicies = indicies
         self.peaks = []
@@ -232,9 +258,12 @@ class ROI:
         self.boronROI = boronROI
 
     def load_from_dict(self, stored_data):
-        self.peaks = [som["peaks"][p["type"]](*p["params"], variances=p["variances"]) for p in stored_data["peaks"]]
-        self.bg = som["backgrounds"][stored_data["background"]["type"]](*stored_data["background"]["params"],variances=stored_data["background"]["variances"])
-        self.fitted = (self.peaks[0].get_variances()[0] != None)
+        if "peaks" in stored_data.keys():
+            self.peaks = [som["peaks"][p["type"]](*p["params"], variances=p["variances"]) for p in stored_data["peaks"]]
+            self.bg = som["backgrounds"][stored_data["background"]["type"]](*stored_data["background"]["params"],variances=stored_data["background"]["variances"])
+            self.fitted = (self.peaks[0].get_variances()[0] != None)
+        else:
+            self.fitted = False
         for kp in stored_data["knownPeaks"]:
             if kp["ctr"] >= self.energies[0] and kp["ctr"] <= self.energies[-1]:
                 knownPeakObj = KnownPeak(kp["ele"], kp["ctr"])
@@ -242,17 +271,27 @@ class ROI:
                     knownPeakObj.set_divisor_output(kp["divisor"], kp["output"])
                 self.knownPeaks.append(knownPeakObj)
     def export_to_dict(self):
-        exportPeaks = [{"type" : p.get_type(), "params" : p.get_original_params(), "variances": p.get_original_variances()} for p in self.peaks]
-        exportBackground = {"type" : self.bg.get_type(), "params" : self.bg.get_original_params(), "variances": self.bg.get_original_variances()}
-        exportKnownPeaks = [kp.export_to_dict() for kp in self.knownPeaks]
-        return {
-            "indicies" : self.indicies,
-            "peaks" : exportPeaks,
-            "background" : exportBackground,
-            "knownPeaks" : exportKnownPeaks
-        }
-    def set_known_peaks(self, peaks):
+        try:
+            exportPeaks = [{"type" : p.get_type(), "params" : p.get_original_params(), "variances": p.get_original_variances()} for p in self.peaks]
+            exportBackground = {"type" : self.bg.get_type(), "params" : self.bg.get_original_params(), "variances": self.bg.get_original_variances()}
+            exportKnownPeaks = [kp.export_to_dict() for kp in self.knownPeaks]
+            return {
+                "indicies" : self.indicies,
+                "peaks" : exportPeaks,
+                "background" : exportBackground,
+                "knownPeaks" : exportKnownPeaks,
+                "peaksInRegion" : self.peaksInRegion
+            }
+        except:
+            exportKnownPeaks = [kp.export_to_dict() for kp in self.knownPeaks]
+            return {
+                "indicies" : self.indicies,
+                "knownPeaks" : exportKnownPeaks,
+                "peaksInRegion" : self.peaksInRegion
+            }
+    def set_known_peaks(self, peaks, otherPeaks):
         self.knownPeaks = peaks
+        self.peaksInRegion = otherPeaks
     def set_background(self, bg):
         self.bg = bg
     def get_background(self):
@@ -280,7 +319,7 @@ class ROI:
 
     def get_known_peaks(self):
         return self.knownPeaks
-                
+    
     def get_range(self):
         return list(self.range)
     def get_formatted_range(self):

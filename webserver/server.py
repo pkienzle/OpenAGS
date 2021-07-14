@@ -1,19 +1,20 @@
 from quart import Quart, request, redirect, url_for, render_template, send_file, websocket, make_response
 import asyncio
-import os
-import uuid
-import aiofiles
-import aiofiles.os
-from hashlib import md5
-import json
 from werkzeug.utils import secure_filename
 from aiotinydb import AIOTinyDB
 from tinydb import Query
-from copy import deepcopy
-import time
+import aiofiles
+import aiofiles.os
 
+import os
+import uuid
+import json
+import time
 import sys
+from copy import deepcopy
+
 sys.path.append('../backend')
+
 from backend import ActivationAnalysis
 from parsers import CSVWriter, ExcelWriter
 from constants import som
@@ -219,11 +220,13 @@ async def ws(projectID):
                 try:
                     entryParams = [float(x) for x in dataDict["entryParams"]]
                 except:
-                    ws.send(json.dumps({"type" : "error", "text":"Please enter only numbers for peak paramaters."}))
+                    await websocket.send(json.dumps({"type" : "error", "text":"Please enter only numbers for peak paramaters."}))
+                    continue
                 try:
                     stringRepr, params = analysisObject.get_entry_repr(dataDict["class"],dataDict["name"],dataDict["ROIIndex"],entryParams)
                 except:
-                    ws.send(json.dumps({"type" : "error", "text":"Your peak is outside the ROI bounds."}))
+                    await websocket.send(json.dumps({"type" : "error", "text":"Your peak is outside the ROI bounds."}))
+                    continue
                 outputObj = {
                     "type" : "entryReprResponse",
                     "class" : dataDict["class"],
@@ -273,6 +276,9 @@ async def ws(projectID):
                 Project = Query()
                 async with AIOTinyDB("projectDB.json") as projectDB:
                     projectDB.update(analysisObject.export_to_dict(), Project.id == projectID)
+                
+                for f in os.listdir(".\\results\\"+projectID):
+                    await aiofiles.os.remove(f)
 
                 outputData = json.dumps({"type" : "resultsGenerated"})
                 for queue in activeProjects[projectID]["webSockets"]:

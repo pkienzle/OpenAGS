@@ -114,8 +114,10 @@ class GaussianPeak(StandardPeak):
     def get_area_stdev(self):
         return self.get_area() * math.sqrt((self.ampVar/self.amp)**2+(self.widVar/self.wid)**2)
     
-    def handle_entry(self, entry):
+    def handle_entry(self, entry, bounds=[0,16000]):
         self.ctr = float(entry[0])
+        if self.ctr < bounds[0] or self.ctr > bounds[1]:
+            raise ValueError("Out of Bounds Peak")
         self.amp = float(entry[1])
         self.wid = 1
     def get_ydata(self, xdata):
@@ -243,8 +245,10 @@ class KuboSakaiBoronPeak(BoronPeak):
     def get_entry_fields():
         return ["Center (keV)", "Max Amplitude"]
 
-    def handle_entry(self, entry):
+    def handle_entry(self, entry, bounds=[0,16000]):
         self.E0 = float(entry[0])
+        if self.E0 < bounds[0] or self.E0 > bounds[1]:
+            raise ValueError("Out of Bounds Peak")
         self.N0 = 10 * float(entry[1])
         self.D = 2
         self.delta = 1.8

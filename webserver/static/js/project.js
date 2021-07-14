@@ -41,6 +41,14 @@ ws.onmessage = function (event) {
                 window.unfittedRegions.splice(window.unfittedRegions.indexOf(data.index), 1);
             }
 
+            if(!data.fitted){
+                if(window.unfittedRegions.indexOf(data.index) === -1){
+                    window.unfittedRegions.push(data.index);
+                }
+                showErrorMessage("Could not find a fit. Try reducing the number of peaks in the fit. If this doesn't work, you can submit the other ROIs and this one will be ignored.");
+                break;
+            }
+
             var bgList = document.getElementById("fittedBgList-"+data.index.toString());
             bgList.innerHTML = "<li class='list-group-item compact' id=\""+ data.bgString +"\"><p class = 'bg-label'>"+ data.bgString +"</p>";
             
@@ -115,13 +123,13 @@ ws.onmessage = function (event) {
             ws.close();       
             showRefreshModal();
             break;
-        case "user":
-            if(data.action == "joined"){
-                document.getElementById("usersDiv").innerHTML += "<img class='userImage' id='"+data.username+"' src='https://www.gravatar.com/avatar/"+data.userHash+"' title='"+data.username+"'/>"
-            }
         case "resultsGenerated":
             ws.close();
             showRedirectModal();
+            break;
+        case "error":
+            showErrorMessage(data.text);
+            break;
     }
 
 };

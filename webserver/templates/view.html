@@ -56,6 +56,7 @@
             var NAATimes = {{analysisObject.get_naa_times()|safe}};
         {% endif %}
     </script>
+    <script src="/static/js/main.js"></script>
     <script src="/static/js/view.js"></script>
 
     <div id="container">
@@ -235,9 +236,9 @@
                             <div class="col-6">
                                 <ul class="list-group" id="selectedIsotopes">
                                     {% for iso in analysisObject.get_isotopes() %}
-                                        <li class='list-group-item w-50 fl'>
+                                        <li class='list-group-item w-50 fl' id='{{iso}}'>
                                             <p class='iso-label'>{{iso}}</p>
-                                            <img class="rmv-btn" src="/icons/file-x.svg" onclick="removeIsotope({{iso}})">
+                                            <img class="rmv-btn" src="/icons/file-x.svg" onclick="removeIsotope('{{iso}}')">
                                         </li>
                                     {% endfor %}
                                 </ul>
@@ -454,29 +455,29 @@
                 ps.value = (parseInt(ps.value)+1).toString();
                 carousel.next()
             }
-            window.dispatchEvent(new Event('resize'));
+            setTimeout(function(){window.dispatchEvent(new Event('resize'))}, 500);
         }
         function downOne(){
             if(parseInt(ps.value) != 1){
                 ps.value = (parseInt(ps.value)-1).toString();
                 carousel.prev();
             }
-            window.dispatchEvent(new Event('resize'));
+            setTimeout(function(){window.dispatchEvent(new Event('resize'))}, 500);
         }
         function toTopEnd(){
             ps.value=numberPages;
             carousel.to(numberPages - 1);
-            window.dispatchEvent(new Event('resize'));
+            setTimeout(function(){window.dispatchEvent(new Event('resize'))}, 500);
         }
         function toBotEnd(){
             ps.value=1;
             carousel.to(0);
-            window.dispatchEvent(new Event('resize'));
+            setTimeout(function(){window.dispatchEvent(new Event('resize'))}, 500);
         }
         function updatePage(obj){
             newPage = parseInt(obj.value);
             carousel.to(newPage - 1);
-            window.dispatchEvent(new Event('resize'));
+            setTimeout(function(){window.dispatchEvent(new Event('resize'))}, 500);
         }
         function showCompareModal(i, minEnergy, maxEnergy){
             document.getElementById("file1Select").value = filesList[i];

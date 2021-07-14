@@ -12,7 +12,6 @@
             margin-top: 10px;
             margin-bottom: 10px;
             margin-left: 10px;
-            margin-right: 10px;
         }
         #rightAligned{
             position:relative;
@@ -36,16 +35,15 @@
                 <button class="btn btn-secondary" onclick="window.location.replace(window.location.href.replace('results', 'view'));">Back to Spectrum View</button>
                 <button class="btn btn-secondary" onclick="window.location.replace(window.location.href.replace('results', 'edit'));">Back to Analysis</button>
             </div>
-            <div class="col-4"></div>
         </div>
     <div class="row">
-    <btn class="btn btn-primary mt" onclick="toggleTables();">Toggle Format (By File/By Eval Type)</btn>
+    <btn class="btn btn-primary mt w-25" onclick="toggleTables();">Toggle Format (By File/By Eval Type)</btn>
     <div class="collapse show mt" id="byFile">
         <div class="card card-body">
             {% for i in range(analysisObject.fileData|length) %}
                 {% set fileData = analysisObject.fileData[i] %}
                 <h5>{{analysisObject.fileList[i].split("\\")[-1]}}</h5>
-                <a class="btn btn-secondary" href="/results/{{projectID}}/{{analysisObject.fileList[i].split('\\')[-1].split('.')[0] + '_Analysis_Results.csv'}}">Get CSV</a>
+                <a class="btn btn-secondary w-25" href="/results/{{projectID}}/{{analysisObject.fileList[i].split('\\')[-1].split('.')[0] + '_Analysis_Results.csv'}}">Get CSV</a>
                 {% for j in range(fileData["resultHeadings"]|length) %}
                     <h6>{{fileData["evaluatorNames"][j]}}</h6>
                     <table class="table table-bordered w-50">
@@ -91,12 +89,13 @@
         {% endfor %}
     </div>
     </div>
-    </div>
     <div class="row">
         <div class="col-2">
-        <a class="btn btn-secondary" href="/results/{{projectID}}/{{analysisObject.title.replace(' ','_')}}.xlsx">Get Excel Output</a>
+        <a class="btn btn-primary" href="/results/{{projectID}}/{{analysisObject.title.replace(' ','_')}}.xlsx">Get Excel Output</a>
         </div>
     </div>
+    </div>
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js" integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf" crossorigin="anonymous"></script>
     <script>
         function toggleTables(){
