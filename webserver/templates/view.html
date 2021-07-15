@@ -51,10 +51,11 @@
   </head>
   <body>
     <script>
-        filesList = {{analysisObject.fileList|safe}};
+        filesList = {{analysisObject.get_filename_list()|safe}}; 
         {% if analysisObject.delayed %}
             var NAATimes = {{analysisObject.get_naa_times()|safe}};
         {% endif %}
+        
     </script>
     <script src="/static/js/main.js"></script>
     <script src="/static/js/view.js"></script>
@@ -108,7 +109,7 @@
                                 <div class="col-8">
                                     <select id="timeFileSelect" onchange="updateShownTimes();">
                                         {% for fname in analysisObject.fileList %}
-                                            <option value="{{fname}}">{{fname.split('\\')[-1]}}</option>
+                                            <option value="{{pathSplit(fname)[1]}}">{{pathSplit(fname)[1]}}</option>
                                         {% endfor %}
                                     </select>
                                 </div>
@@ -165,13 +166,13 @@
                                 <label class="mt" for="file1Select">Select File 1</label>
                                 <select class="form-select" id="file1Select">
                                     {% for fname in analysisObject.fileList %}
-                                        <option value="{{fname}}">{{fname.split('\\')[-1]}}</option>
+                                        <option value="{{pathSplit(fname)[1]}}">{{pathSplit(fname)[1]}}</option>
                                     {% endfor %}
                                 </select>
                                 <label class="mt" for="file1Select">Select File 2</label>
                                 <select class="form-select" id="file2Select">
                                     {% for fname in analysisObject.fileList %}
-                                        <option value="{{fname}}">{{fname.split('\\')[-1]}}</option>
+                                        <option value="{{pathSplit(fname)[1]}}">{{pathSplit(fname)[1]}}</option>
                                     {% endfor %}
                                 </select>
                                 <label class="mt" for="compRangeSelect">Select Range</label>
@@ -324,7 +325,7 @@
                   </div>
                 </div>
                 <div class="modal-footer">
-                  <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="">Submit</button>
+                  <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="sendPrefUpdates();">Submit</button>
                   <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
               </div>
@@ -375,7 +376,7 @@
                                 <div></div>
                                 <button class="btn btn-secondary" onclick="showCompareModal({{i}});">Compare This Region</button>
                                 <div style="height: 5vh;"></div>
-                                <a class="btn btn-secondary" href="/results/{{projectID}}/{{analysisObject.fileList[i].split('\\')[-1].split('.')[0] + '_xy.csv'}}">Download File as CSV</a>
+                                <a class="btn btn-secondary" href="/results/{{projectID}}/{{pathSplit(analysisObject.fileList[i])[1].split('.')[0] + '_xy.csv'}}">Download File as CSV</a>
                             </div>
                         </div>
                     </div>
@@ -387,7 +388,7 @@
                             name : "Data"
                         }
                         var layout = {
-                            title : "{{analysisObject.fileList[i].split('\\')[-1]}}",
+                            title : "{{pathSplit(analysisObject.fileList[i])[1]}}",
                             showlegend: true,
                             margin: {
                                 l: 50,

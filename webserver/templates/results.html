@@ -42,8 +42,8 @@
         <div class="card card-body">
             {% for i in range(analysisObject.fileData|length) %}
                 {% set fileData = analysisObject.fileData[i] %}
-                <h5>{{analysisObject.fileList[i].split("\\")[-1]}}</h5>
-                <a class="btn btn-secondary w-25" href="/results/{{projectID}}/{{analysisObject.fileList[i].split('\\')[-1].split('.')[0] + '_Analysis_Results.csv'}}">Get CSV</a>
+                <h5>{{pathSplit(analysisObject.fileList[i])[1]}}</h5>
+                <a class="btn btn-secondary w-25" href="/results/{{projectID}}/{{pathSplit(analysisObject.fileList[i])[1].split('.')[0] + '_Analysis_Results.csv'}}">Get CSV</a>
                 {% for j in range(fileData["resultHeadings"]|length) %}
                     <h6>{{fileData["evaluatorNames"][j]}}</h6>
                     <table class="table table-bordered w-50">
@@ -78,7 +78,7 @@
                 {% set fileData = analysisObject.fileData[j] %}
                 {% for k in range(fileData["results"][i]|length) %}
                     <tr>
-                        <td>{{analysisObject.fileList[j].split("\\")[-1]}}</td>
+                        <td>{{pathSplit(analysisObject.fileList[i])[1]}}</td>
                         {% for res in fileData["results"][i][k] %}
                             <td>{{res}}</td>
                         {% endfor %}

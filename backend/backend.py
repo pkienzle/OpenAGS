@@ -1,11 +1,13 @@
 import numpy as np
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, OptimizeWarning
+import warnings
 import itertools
 from util import multiple_peak_and_background, get_curve, binary_search_find_nearest, set_all_params, KnownPeak
 from constants import default_prefs, som
 from parsers import SpectrumParser, StandardsFileParser
 from models import GaussianPeak, LinearBackground
 from sigfig import round
+import os
 
 class ActivationAnalysis:
     def __init__(self, userPrefs = default_prefs, title = ""):
@@ -201,7 +203,8 @@ class ActivationAnalysis:
 
     def get_isotopes(self):
         return self.isotopes
-
+    def get_filename_list(self):
+        return [os.path.split(f)[1] for f in self.fileList]
     def get_all_entry_fields(self):
         return {
             "peaks" : {k : som["peaks"][k].get_entry_fields() for k in som["peaks"].keys()},
@@ -224,11 +227,12 @@ class ActivationAnalysis:
         self.ROIs[ROIIndex].set_data([energies[lowerIndex], energies[upperIndex]], energies[lowerIndex:upperIndex], cps[lowerIndex:upperIndex], [lowerIndex, upperIndex])
 
     def run_evaluators(self, evaluators, e_args):
+        ROIsToEval = [r for r in self.ROIs if r.fitted]
         for i in range(len(self.fileData)):
             if i != 0:
                 energies = self.fileData[i]["energies"]
                 cps = self.fileData[i]["cps"]
-                for r in self.ROIs:
+                for r in ROIsToEval:
                     if self.delayed:
                         for kp in r.get_known_peaks():
                             kp.set_delay_times(*self.fileData[i]["NAATimes"])
@@ -271,6 +275,7 @@ class ROI:
                     knownPeakObj.set_divisor_output(kp["divisor"], kp["output"])
                 self.knownPeaks.append(knownPeakObj)
     def export_to_dict(self):
+        PIR = [p.export_to_dict() for p in self.peaksInRegion]
         try:
             exportPeaks = [{"type" : p.get_type(), "params" : p.get_original_params(), "variances": p.get_original_variances()} for p in self.peaks]
             exportBackground = {"type" : self.bg.get_type(), "params" : self.bg.get_original_params(), "variances": self.bg.get_original_variances()}
@@ -280,14 +285,14 @@ class ROI:
                 "peaks" : exportPeaks,
                 "background" : exportBackground,
                 "knownPeaks" : exportKnownPeaks,
-                "peaksInRegion" : self.peaksInRegion
+                "peaksInRegion" : PIR
             }
         except:
             exportKnownPeaks = [kp.export_to_dict() for kp in self.knownPeaks]
             return {
                 "indicies" : self.indicies,
                 "knownPeaks" : exportKnownPeaks,
-                "peaksInRegion" : self.peaksInRegion
+                "peaksInRegion" : PIR
             }
     def set_known_peaks(self, peaks, otherPeaks):
         self.knownPeaks = peaks
@@ -340,14 +345,16 @@ class ROI:
     def fit(self, reanalyze = False):
         f = lambda x,*params: multiple_peak_and_background(self.peaks, self.bg, x, params)
         p0 = np.array(self.bg.get_params() + list(itertools.chain.from_iterable([p.get_params() for p in self.peaks])))
-        try:
-            params, cov = curve_fit(f, self.energies, self.cps, p0=p0)
-            variances = np.diag(cov)
-            set_all_params(self.peaks, self.bg, params, variances, reanalyze)
-            self.fitted = True
-        except RuntimeError:
-            self.fitted = False
-            pass
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", OptimizeWarning)
+            try:
+                params, cov = curve_fit(f, self.energies, self.cps, p0=p0)
+                variances = np.diag(cov)
+                set_all_params(self.peaks, self.bg, params, variances, reanalyze)
+                self.fitted = True
+            except:
+                self.fitted = False
+                pass
     
     def get_fitted_curve(self, xdata = None):
         if xdata == None:

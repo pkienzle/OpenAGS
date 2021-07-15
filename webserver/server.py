@@ -1,8 +1,6 @@
 from quart import Quart, request, redirect, url_for, render_template, send_file, websocket, make_response
 import asyncio
 from werkzeug.utils import secure_filename
-from aiotinydb import AIOTinyDB
-from tinydb import Query
 import aiofiles
 import aiofiles.os
 
@@ -11,9 +9,10 @@ import uuid
 import json
 import time
 import sys
+import functools
 from copy import deepcopy
 
-sys.path.append('../backend')
+sys.path.append(os.path.join("..","backend"))
 
 from backend import ActivationAnalysis
 from parsers import CSVWriter, ExcelWriter
@@ -33,7 +32,7 @@ async def startup():
 
 @app.route("/icons/<icon_name>")
 async def get_icon(icon_name):
-    return await send_file(os.path.join(".\\img\\icons", icon_name))
+    return await send_file(os.path.join(os.getcwd(), "img", "icons", icon_name))
 
 @app.route("/projects/<projectID>/<action>")
 async def project(projectID, action):
@@ -42,40 +41,42 @@ async def project(projectID, action):
     if projectID in activeProjects.keys():
         analysisObject = activeProjects[projectID]["analysisObject"]
     else:
-        Project = Query()
-        async with AIOTinyDB("projectDB.json") as projectDB:
-            currentProject = projectDB.search(Project.id == projectID)[0]
+        async with aiofiles.open(os.path.join(os.getcwd(),"uploads",projectID,"state.json"), mode="r") as f:
+            contents = await f.read()
+            currentProject = json.loads(contents)
             analysisObject = ActivationAnalysis()
             await loop.run_in_executor(None, analysisObject.load_from_dict, currentProject)
             activeProjects[projectID] = {
                 "analysisObject" : analysisObject,
-                "webSockets" : []
+                "webSockets" : [],
+                "numUsers" : 0,
+                "saveAction" : None
             }
-
+    print(activeProjects.keys())
     if action == "edit":
         if not analysisObject.ROIsFitted:
             analysisObject.get_fitted_ROIs()
-        return await(render_template("project.html", analysisObject=analysisObject, projectID=projectID))
+        return await(render_template("project.html", analysisObject=analysisObject, projectID=projectID, pathSplit=os.path.split))
     elif action == "view":
-        return await(render_template("view.html", analysisObject=analysisObject, projectID=projectID, som=som))
+        return await(render_template("view.html", analysisObject=analysisObject, projectID=projectID, som=som, pathSplit=os.path.split))
     elif action == "results":
-        return await(render_template("results.html", analysisObject=analysisObject, projectID=projectID))
+        return await(render_template("results.html", analysisObject=analysisObject, projectID=projectID, pathSplit=os.path.split))
     else: 
         return ""
 
 @app.route("/create", methods=["GET","POST"])
 async def create():
     if request.method == "GET":
-        async with aiofiles.open(os.getcwd()+'\\create.html', mode='r') as f:
+        async with aiofiles.open(os.path.join(os.getcwd(),'create.html'), mode='r') as f:
             contents = await f.read()
         return contents
     else:
-        upload_path = "D:\\CyPat\\OpenAGS\\webserver\\uploads"
+        upload_path = os.path.join(os.getcwd(), "uploads")
         projectID = str(uuid.uuid4())
         #TODO: aiofiles.os.mkdir not working for some reason. Debug this
         
         os.mkdir(os.path.join(upload_path,projectID))
-        os.mkdir(os.path.join(os.getcwd(), "results\\"+projectID))
+        os.mkdir(os.path.join(os.getcwd(), "results", projectID))
 
         uploaded_files = await request.files  
         form = await request.form      
@@ -85,7 +86,7 @@ async def create():
             standardsFilename = os.path.join(upload_path,projectID,secure_filename(standardsFile.filename))
             await standardsFile.save(standardsFilename)
         except:
-            standardsFilename = os.getcwd()+"\\AllSensitivity.csv"
+            standardsFilename = os.path.join(os.getcwd(),"AllSensitivity.csv")
     
         filenamesList = []
         for f in files_list:
@@ -93,12 +94,11 @@ async def create():
             p = os.path.join(upload_path,projectID,secure_filename(f.filename))
             await f.save(p)
         
-        print(form.get("analysisType"))
         delayed = form.get("analysisType") == "delayed"
 
-        async with AIOTinyDB("projectDB.json") as projectDB:
-            projectDB.insert({
-                "id" : projectID,
+        async with aiofiles.open(os.path.join(os.getcwd(), "uploads", projectID, "state.json"), mode="w") as f:
+            await f.seek(0)
+            await f.write(json.dumps({
                 "title" : form["title"],
                 "files" : filenamesList,
                 "standardsFilename" : standardsFilename,
@@ -107,13 +107,13 @@ async def create():
                 "resultsGenerated" : False,
                 "delayed" : delayed,
                 "NAATimes" : [[] for i in range(len(filenamesList))]
-            })
+            }))
         return json.dumps({"id" : projectID})
 
 @app.route("/results/<projectID>/<filename>")
 async def serve_result(projectID, filename):
     try:
-        async with aiofiles.open("./results/"+projectID+"/"+filename,"rb") as f:
+        async with aiofiles.open(os.path.join(os.getcwd(),"results",projectID,filename), mode="rb") as f:
             c = await f.read()
             return c, 200, {'Content-Disposition' : 'attachment; filename="'+filename+'"'}
     except:
@@ -121,9 +121,9 @@ async def serve_result(projectID, filename):
         if projectID in activeProjects.keys():
             analysisObject = activeProjects[projectID]["analysisObject"]
         else:
-            Project = Query()
-            async with AIOTinyDB("projectDB.json") as projectDB:
-                currentProject = projectDB.search(Project.id == projectID)[0]
+            async with aiofiles.open(os.path.join(os.getcwd(),"uploads", projectID, "state.json"), mode="r") as f:
+                contents = await f.read()
+                currentProject = json.loads(contents)
                 analysisObject = ActivationAnalysis()
                 await loop.run_in_executor(None, analysisObject.load_from_dict, currentProject)
         if filename.split(".")[-1] == "xlsx":
@@ -134,27 +134,55 @@ async def serve_result(projectID, filename):
         elif filename[-21:] == "_Analysis_Results.csv":
             origFilename = filename.replace("_Analysis_Results.csv","")
             for i in range(len(analysisObject.fileList)):
-                if analysisObject.fileList[i].split('\\')[-1].split('.')[0] == origFilename:
+                if os.path.split(analysisObject.fileList[i])[1].split('.')[0] == origFilename:
                     cw = CSVWriter(projectID, filename, analysisObject.fileData[i]["resultHeadings"][0], analysisObject.fileData[i]["results"])
                     cw.write()
                     break
         else:
             origFilename = filename.replace("_xy.csv","")
             for i in range(len(analysisObject.fileList)):
-                if analysisObject.fileList[i].split('\\')[-1].split('.')[0] == origFilename:
+                if os.path.split(analysisObject.fileList[i])[1].split('.')[0] == origFilename:
                     cw = CSVWriter(projectID, filename, ["Energy (keV)", "Counts Per Second"], zip(analysisObject.fileData[i]["energies"], analysisObject.fileData[i]["cps"]))
                     cw.write()
                     break
-        async with aiofiles.open("./results/"+projectID+"/"+filename,"rb") as f:
+        async with aiofiles.open(os.path.join(os.getcwd(),"results",projectID, filename), mode="rb") as f:
             c = await f.read()
             return c, 200, {'Content-Disposition' : 'attachment; filename="'+filename+'"'}
+
+async def saveProject(projectID):
+    await asyncio.sleep(60)
+    print("saving "+projectID)
+    global activeProjects
+    async with aiofiles.open(os.path.join(os.getcwd(),"uploads",projectID,"state.json"), mode="w") as f:
+        await f.seek(0)
+        await f.write(json.dumps(activeProjects[projectID]["analysisObject"].export_to_dict()))
+    
+    del activeProjects[projectID]
+
 
 @app.websocket("/projects/<projectID>/ws")
 async def ws(projectID):
     async def producer(projectID):
         global activeProjects
         queue = asyncio.Queue()
+        if projectID not in activeProjects.keys():
+            async with aiofiles.open(os.path.join(os.getcwd(),"uploads",projectID,"state.json"), mode="r") as f:
+                contents = await f.read()
+                currentProject = json.loads(contents)
+                analysisObject = ActivationAnalysis()
+                await loop.run_in_executor(None, analysisObject.load_from_dict, currentProject)
+                activeProjects[projectID] = {
+                    "analysisObject" : analysisObject,
+                    "webSockets" : [],
+                    "numUsers" : 0,
+                    "saveAction" : None
+                }
         activeProjects[projectID]["webSockets"].append(queue)
+        activeProjects[projectID]["numUsers"] += 1
+        if activeProjects[projectID]["saveAction"] != None:
+            activeProjects[projectID]["saveAction"].cancel()
+        activeProjects[projectID]["saveAction"] = None
+        print("save action cancelled")
         while True:
             try:
                 data = await queue.get()
@@ -273,31 +301,37 @@ async def ws(projectID):
                 #TODO: Maybe allow users to customize this, as that is kinda the point of evaluators. 
                 analysisObject.run_evaluators([MassSensEval], [[]])
                 
-                Project = Query()
-                async with AIOTinyDB("projectDB.json") as projectDB:
-                    projectDB.update(analysisObject.export_to_dict(), Project.id == projectID)
+                async with aiofiles.open(os.path.join(os.getcwd(),"uploads",projectID,"state.json"), mode="w") as f:
+                    await f.seek(0)
+                    await f.write(json.dumps(analysisObject.export_to_dict()))
                 
-                for f in os.listdir(".\\results\\"+projectID):
+                
+                for f in os.listdir(os.path.join(os.getcwd(), "results", projectID)):
                     await aiofiles.os.remove(f)
 
                 outputData = json.dumps({"type" : "resultsGenerated"})
                 for queue in activeProjects[projectID]["webSockets"]:
                     await queue.put(outputData)
+            elif dataDict["type"] == "userPrefsUpdate":
+                analysisObject = activeProjects[projectID]["analysisObject"]
+                analysisObject.set_user_prefs(dataDict["newPrefs"])
+                for queue in activeProjects[projectID]["webSockets"]:
+                    await queue.put(data)
     consumer_task = asyncio.ensure_future(consumer(projectID))
     producer_task = asyncio.ensure_future(producer(projectID))
     try:
         await asyncio.gather(consumer_task, producer_task)
     finally:
+        activeProjects[projectID]["numUsers"] -= 1
+        if activeProjects[projectID]["numUsers"] <= 0:
+            print("started save action")
+            activeProjects[projectID]["saveAction"] = asyncio.create_task(saveProject(projectID))
         consumer_task.cancel()
         producer_task.cancel()
 @app.after_serving
 async def export_to_db():
     global activeProjects
-    async with AIOTinyDB("projectDB.json") as projectDB:
-        Project = Query()
-        for projectID in activeProjects.keys():
-            exportDict = activeProjects[projectID]["analysisObject"].export_to_dict()
-            exportDict["id"] = projectID
-            projectDB.update(exportDict, Project.id == projectID)
+    for projectID in activeProjects.keys():
+        await saveProject(projectID)
 
 app.run()

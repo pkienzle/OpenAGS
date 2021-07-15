@@ -1,10 +1,8 @@
 function updateCompareModal(){
-    var file1 = document.getElementById("file1Select").value;
-    var file2 = document.getElementById("file2Select").value;
-    var filename1 = file1.split("\\")[file1.split("\\").length - 1]
-    var filename2 = file2.split("\\")[file2.split("\\").length - 1]
-    var file1Index = filesList.indexOf(file1);
-    var file2Index = filesList.indexOf(file2);
+    var filename1 = document.getElementById("file1Select").value;
+    var filename2 = document.getElementById("file2Select").value;
+    var file1Index = filesList.indexOf(filename1);
+    var file2Index = filesList.indexOf(filename2);
     var rangeSelectValue = document.getElementById("compRangeSelect").value;
     if(rangeSelectValue == "custom"){
         var minEnergy = parseFloat(document.getElementById("lowerBoundInput").value);
@@ -317,8 +315,8 @@ function sendNAATimes(){
 }
 
 function sendPrefUpdates(){
-    var ROIWidth = document.getElementById("prefROIWidth");
-    var boronROIWidth = document.getElementById("prefBoronROIWidth");
+    var ROIWidth = parseFloat(document.getElementById("prefROIWidth").value);
+    var boronROIWidth = parseFloat(document.getElementById("prefBoronROIWidth").value);
     if(isNaN(ROIWidth) || isNaN(boronROIWidth) || ROIWidth < 0 || boronROIWidth < 0){
         return showErrorMessage("Please enter ROI widths as positive numbers.")
     }
@@ -327,12 +325,15 @@ function sendPrefUpdates(){
     var bgType = document.getElementById("prefBGType").value;
     var overlapROIs = document.getElementById("overlapROICheck").checked;
     wsObj = {
-        "ROIWidth" : ROIWidth,
-        "boronROIWidth " : boronROIWidth,
-        "peakType" : peakType,
-        "boronPeakType" : boronPeakType,
-        "bgType" : bgType,
-        "overlapROIs" : overlapROIs
+        "type" : "userPrefsUpdate",
+        "newPrefs" : {
+            "roi_width" : ROIWidth,
+            "B_roi_width" : boronROIWidth,
+            "peak_type" : peakType,
+            "boron_peak_type" : boronPeakType,
+            "background_type" : bgType,
+            "overlap_rois" : overlapROIs
+        }
     }
     ws.send(JSON.stringify(wsObj));
 }
