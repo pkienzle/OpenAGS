@@ -34,6 +34,18 @@ async def startup():
 async def get_icon(icon_name):
     return await send_file(os.path.join(os.getcwd(), "img", "icons", icon_name))
 
+@app.route("/")
+async def homepage():
+    async with aiofiles.open(os.path.join(os.getcwd(),'homepage.html'), mode='r') as f:
+        contents = await f.read()
+    return contents
+
+@app.route("/error")
+async def errorpage():
+    async with aiofiles.open(os.path.join(os.getcwd(),'error.html'), mode='r') as f:
+        contents = await f.read()
+    return contents
+
 @app.route("/projects/<projectID>/<action>")
 async def project(projectID, action):
     global activeProjects
@@ -45,7 +57,10 @@ async def project(projectID, action):
             contents = await f.read()
             currentProject = json.loads(contents)
             analysisObject = ActivationAnalysis()
-            await loop.run_in_executor(None, analysisObject.load_from_dict, currentProject)
+            try:
+                await loop.run_in_executor(None, analysisObject.load_from_dict, currentProject)
+            except:
+                return redirect("/error")
             activeProjects[projectID] = {
                 "analysisObject" : analysisObject,
                 "webSockets" : [],
@@ -151,6 +166,15 @@ async def serve_result(projectID, filename):
 
 async def saveProject(projectID):
     await asyncio.sleep(60)
+    print("saving "+projectID)
+    global activeProjects
+    async with aiofiles.open(os.path.join(os.getcwd(),"uploads",projectID,"state.json"), mode="w") as f:
+        await f.seek(0)
+        await f.write(json.dumps(activeProjects[projectID]["analysisObject"].export_to_dict()))
+    
+    del activeProjects[projectID]
+
+async def saveProjectNow(projectID):
     print("saving "+projectID)
     global activeProjects
     async with aiofiles.open(os.path.join(os.getcwd(),"uploads",projectID,"state.json"), mode="w") as f:
@@ -332,6 +356,9 @@ async def ws(projectID):
 async def export_to_db():
     global activeProjects
     for projectID in activeProjects.keys():
-        await saveProject(projectID)
+        a = activeProjects[projectID]["saveAction"]
+        if a != None:
+            a.cancel()
+        await saveProjectNow(projectID)
 
 app.run()

@@ -52,16 +52,26 @@ class StandardsFileParser:
     def __init__(self,fname=""):
         self.file = open(fname, "r")
         self.peaks = None
-    def extract_peaks(self):
+    def extract_peaks(self, delayed):
         if self.peaks != None:
             return self.peaks
         lines = self.file.readlines()
         headings = re.sub(r'[^\x00-\x7F]+','', lines[0]).strip().split(",")
         lines = [l.split(",") for l in lines[1:]]
-        peak_energy_index = headings.index("Energy (keV)")
-        isotope_index = headings.index("Isotope")
+        try:
+            peak_energy_index = headings.index("Energy (keV)")
+            isotope_index = headings.index("Isotope")
+        except:
+            raise ValueError("Bad Sensitivity File Format.")
         re_mass = re.compile(r"Mass \((\w+)\)")
         re_sens = re.compile (r"Sensitivity \(cps/(\w+)\)")
+        reHalfLife = re.compile(r"[Hh]alf-[Ll]ife \((\w+)\)")
+        reDecayConstant = re.compile(r"[Dd]ecay [Cc]onstant \(1/(\w+)\)")
+        halfLifeIndex=None
+        decayConstantIndex = None
+        decayConstant = None
+        decayUnit = None
+
         sensitivity_divisor = None
         divisor_index = None
         unit = None
@@ -70,18 +80,42 @@ class StandardsFileParser:
                 sensitivity_divisor = False
                 divisor_index = i
                 unit = re_mass.match(h).group(1)
-                break
             elif re_sens.match(h) != None:
                 sensitivity_divisor = True
                 divisor_index = i
                 unit = re_sens.match(h).group(1)
-                break
-        if sensitivity_divisor == None:
-            self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index])) for l in lines]
-        elif sensitivity_divisor:
-            self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), sensitivity = float(l[divisor_index]), unit=unit) for l in lines]
+            elif reDecayConstant.match(h):
+                decayConstant = True
+                decayUnit = reDecayConstant.match(h).group(1)
+                decayConstantIndex = i
+            elif reHalfLife.match(h):
+                decayConstant = False
+                decayUnit = reHalfLife.match(h).group(1)
+                halfLifeIndex = i
+        if delayed:
+            if decayConstant == None:
+                raise ValueError("Delayed analysis, must provide half-life or decay constant in sensitivity file")
+            elif decayConstant:
+                if sensitivity_divisor == None:
+                    self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), decayConstant=l[decayConstantIndex], decayUnit = decayUnit) for l in lines]
+                elif sensitivity_divisor:
+                    self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), sensitivity = float(l[divisor_index]), unit=unit, decayConstant=l[decayConstantIndex], decayUnit = decayUnit) for l in lines]
+                else:
+                    self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), mass = float(l[divisor_index]), unit=unit, decayConstant=l[decayConstantIndex], decayUnit = decayUnit) for l in lines]
+            else:
+                if sensitivity_divisor == None:
+                    self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), halfLife=l[halfLifeIndex], decayUnit = decayUnit) for l in lines]
+                elif sensitivity_divisor:
+                    self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), sensitivity = float(l[divisor_index]), unit=unit, halfLife=l[halfLifeIndex], decayUnit = decayUnit) for l in lines]
+                else:
+                    self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), mass = float(l[divisor_index]), unit=unit, halfLife=l[halfLifeIndex], decayUnit = decayUnit) for l in lines]
         else:
-            self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), mass = float(l[divisor_index]), unit=unit) for l in lines]
+            if sensitivity_divisor == None:
+                self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index])) for l in lines]
+            elif sensitivity_divisor:
+                self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), sensitivity = float(l[divisor_index]), unit=unit) for l in lines]
+            else:
+                self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), mass = float(l[divisor_index]), unit=unit) for l in lines]
         self.file.close()
         return self.peaks
 

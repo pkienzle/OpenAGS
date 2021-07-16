@@ -130,14 +130,6 @@
                                     <input class="form-control" id="waitTimeInput"/>
                                 </div>
                             </div>
-                            <div class="row">
-                                <div class="col-4">
-                                    <p>Count Time (min)</p>
-                                </div>
-                                <div class="col-8">
-                                    <input class="form-control" id="countTimeInput"/>
-                                </div>
-                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -500,6 +492,10 @@
         }
         function showROIModal(){
             var theModal = new bootstrap.Modal(document.getElementById("updateROIModal"));
+            theModal.show();
+        }
+        function showNAATimesModal(){
+            var theModal = new bootstrap.Modal(document.getElementById("timeEntryModal"));
             theModal.show();
         }
         function updateRangeForm(){

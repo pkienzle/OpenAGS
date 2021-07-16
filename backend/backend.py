@@ -79,9 +79,12 @@ class ActivationAnalysis:
 
     def load_known_peaks(self, standardsFilename):
         self.standardsFilename = standardsFilename
-        l = StandardsFileParser(standardsFilename).extract_peaks()
+        l = StandardsFileParser(standardsFilename).extract_peaks(self.delayed)
         for p in l:
-            self.knownPeaks[p.get_ctr()] = p
+            c = p.get_ctr() # avoid collisions by changing the center by .01 eV in this dictionary, without affecting the actual object
+            while c in self.knownPeaks.keys():
+                c += 0.00001
+            self.knownPeaks[c] = p
 
     def get_known_peaks(self):
         return self.knownPeaks
@@ -235,7 +238,7 @@ class ActivationAnalysis:
                 for r in ROIsToEval:
                     if self.delayed:
                         for kp in r.get_known_peaks():
-                            kp.set_delay_times(*self.fileData[i]["NAATimes"])
+                            kp.set_delay_times(*self.fileData[i]["NAATimes"], self.fileData[i]["realtime"]/60)
                     bounds = r.get_range()
                     lowerIndex = binary_search_find_nearest(energies, bounds[0])
                     upperIndex = binary_search_find_nearest(energies, bounds[1])

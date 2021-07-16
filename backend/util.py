@@ -42,7 +42,7 @@ class KnownPeak:
             self.delayed = False
 
         if self.delayed:
-            if decayUnit == "s":
+            if decayUnit in ("s", "sec"):
                 self.decayConstant *= 60
             if decayUnit in ("h", "hr"):
                 self.decayConstant /=60
@@ -139,6 +139,13 @@ def binary_search_find_nearest(l, e):
     upperBound = len(l)
     lowerBound = 0
     guess = (upperBound + lowerBound)//2
+    if guess == 0:
+        return guess
+    if guess == 1:
+        if abs(e - l[0]) < abs(e - l[1]):
+            return 0
+        return 1
+        
     while not (e < l[guess+1] and e > l[guess-1]):
         if e > l[guess]:
             lowerBound = guess + 1

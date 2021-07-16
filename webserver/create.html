@@ -24,10 +24,25 @@
             margin-top:10px;
         }
     </style>
-    <title>Create Document</title>
+    <title>Create Analysis</title>
   </head>
   <body>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js" integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf" crossorigin="anonymous"></script>
+    <div class="modal fade" id="errorModal" tabindex="-3" role="dialog" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="errorModalLabel">Error</h5>
+            </div>
+            <div class="modal-body">
+              <p id="errorText"></p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+    </div>
+    
     <h3 class="mt">Create Project</h3>
     <label for="titleInput">Title</label>
     <input type="text" class="form-control w-50" id="titleInput" placeholder="">
@@ -44,7 +59,7 @@
           NAA
         </label>
     </div>
-    <label for="uploadedFilesList" class="mt">Files</label>
+    <label for="uploadedFilesList" class="mt">Upload Spectrum Files</label>
     <ul class="list-group" id="uploadedFilesList"></ul>
     <input type="file" class="form-control w-25" id="filesUpload" onchange="updateFileList(this)" multiple/>
     <label for="standardsFileUpload">Upload Standards File</label>
@@ -57,7 +72,8 @@
         </div>
     </div>
     <button type="button" id="cancel_btn" class="btn btn-secondary d-none">Cancel upload</button>
-
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js" integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf" crossorigin="anonymous"></script>
     <script>
         currentFilesList = []
         function updateFileList(uploadElement){
@@ -84,7 +100,7 @@
         }
         function uploadFiles(){
             if(currentFilesList.length === 0){
-                return null;
+                return showErrorMessage("Please Add Spectrum Files.");
             }
             var data = new FormData();
             var request = new XMLHttpRequest();
@@ -101,13 +117,24 @@
                 data.append("file",currentFilesList[i]);
             }
 
-            data.append("title", document.getElementById("titleInput").value);
+            if(document.getElementById("titleInput").value === ""){
+                data.append("title", "Untitled");
+            }
+            else{
+                data.append("title", document.getElementById("titleInput").value);
+            }
 
-            try {
-                data.append("standardsFile", document.getElementById("standardsFileUpload").files[0]);
-            } catch (error) {
+            if(document.getElementById("standardsFileUpload").files[0] == null){
+                if(!document.getElementById("PGAACheck").checked){
+                    reset();
+                    return showErrorMessage("NAA Analyses must provide standards files.");
+                }
                 data.append("standardsFile", "");
             }
+            else{
+                data.append("standardsFile", document.getElementById("standardsFileUpload").files[0]);
+            }
+
             if(document.getElementById("PGAACheck").checked){
                 data.append("analysisType", "prompt");
             }
@@ -149,6 +176,11 @@
             document.getElementById("progress_wrapper").classList.add("d-none");
             document.getElementById("create_btn").classList.remove("d-none");
             document.getElementById("progress").setAttribute("style","width: 0%");
+        }
+        function showErrorMessage(msg){
+            document.getElementById("errorText").innerText = msg;
+            var theModal = new bootstrap.Modal(document.getElementById("errorModal"));
+            theModal.show();
         }
     </script>
   </body>

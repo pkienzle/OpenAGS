@@ -237,9 +237,10 @@ function applyFilter(){
 
 function updateShownTimes(){
     var times = NAATimes[filesList.indexOf(document.getElementById("timeFileSelect").value)];
-    document.getElementById("irrTimeInput").value = times[0].toString();
-    document.getElementById("waitTimeInput").value = times[1].toString();
-    document.getElementById("countTimeInput").value = times[2].toString();
+    if(times.length >= 1){
+        document.getElementById("irrTimeInput").value = times[0].toString();
+        document.getElementById("waitTimeInput").value = times[1].toString();
+    }
 }
 
 var wsUrl = window.location.href.toString().replace("http","ws").replace("view","ws");
@@ -273,19 +274,47 @@ ws.onmessage = function (event) {
             break;
         case "NAATimeUpdate":
             NAATimes[data.fileIndex] = data.times;
+            updateShownTimes();
             break;
         case "error":
             showErrorMessage(data.text);
+            break;
+        case "userPrefsUpdate":
+            document.getElementById("prefROIWidth").value = data.roi_width.toString();
+            document.getElementById("prefBoronROIWidth").value = data.B_roi_width.toString();
+            document.getElementById("prefPeakType").value = data.peak_type;
+            document.getElementById("prefBoronPeakType") = data.boron_peak_type;
+            document.getElementById("prefBGType") = data.background_type;
+            document.getElementById("overlapROICheck").checked = data.overlap_rois;
             break;
     }
 };
 
 function startAnalysis(){
-    if(document.getElementById("selectedIsotopes").childElementCount > 0){
-        window.location.replace(window.location.href.replace("/view","/edit"))
+    if(document.getElementById("selectedIsotopes").childElementCount === 0){
+        showROIModal();
     }
     else{
-        showROIModal();
+        try {
+            var sw = false;
+            for(var i=0;i<NAATimes.length;i++){
+                console.log(NAATimes[i]);
+                if(NAATimes[i].length === 0){
+                    console.log("switched");
+                    sw=true;
+                    document.getElementById("timeFileSelect").value = filesList[i];
+                    updateShownTimes();
+                    showNAATimesModal();
+                }
+            }
+            if(!sw){
+                window.location.replace(window.location.href.replace("/view","/edit"));
+            }
+        } catch (error) {
+            console.log(error);
+            window.location.replace(window.location.href.replace("/view","/edit"));
+        }
+        
     }
 }
 
@@ -301,11 +330,10 @@ function submitROIs(){
 function sendNAATimes(){
     var irrTime = parseFloat(document.getElementById("irrTimeInput").value);
     var waitTime = parseFloat(document.getElementById("waitTimeInput").value);
-    var countTime = parseFloat(document.getElementById("countTimeInput").value);
-    if(isNaN(irrtime) || isNaN(waitTime) ||isNaN(countTime)){
+    if(isNaN(irrTime) || isNaN(waitTime)){
         return showErrorMessage("Please enter times as numbers, in minutes.");
     }
-    var allTimes = [irrTime, waitTime, countTime];
+    var allTimes = [irrTime, waitTime];
     var wsObj = {
         "type" : "NAATimeUpdate",
         "fileIndex" : filesList.indexOf(document.getElementById("timeFileSelect").value),
