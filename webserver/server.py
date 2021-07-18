@@ -59,10 +59,10 @@ async def project(projectID, action):
             contents = await f.read()
             currentProject = json.loads(contents)
             analysisObject = ActivationAnalysis()
-            try:
-                await loop.run_in_executor(None, analysisObject.load_from_dict, currentProject)
+            await loop.run_in_executor(None, analysisObject.load_from_dict, currentProject)
+            """
             except:
-                return redirect("/error")
+                return redirect("/error")"""
             activeProjects[projectID] = {
                 "analysisObject" : analysisObject,
                 "webSockets" : [],
