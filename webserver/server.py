@@ -67,7 +67,6 @@ async def project(projectID, action):
                 "numUsers" : 0,
                 "saveAction" : None
             }
-    print(activeProjects.keys())
     if action == "edit":
         if not analysisObject.ROIsFitted:
             analysisObject.get_fitted_ROIs()
@@ -361,4 +360,3 @@ async def export_to_db():
             a.cancel()
         await saveProjectNow(projectID)
 
-app.run()
