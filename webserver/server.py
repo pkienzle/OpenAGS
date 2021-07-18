@@ -362,5 +362,5 @@ async def export_to_db():
             a.cancel()
         await saveProjectNow(projectID)
 serverConfig = Config()
-serverConfig.bind=["127.0.0.1:80"]
+serverConfig.bind=["0.0.0.0:80"]
 asyncio.run(serve(app, serverConfig))
