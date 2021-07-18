@@ -1,5 +1,7 @@
 from quart import Quart, request, redirect, url_for, render_template, send_file, websocket, make_response
 import asyncio
+from hypercorn.config import Config
+from hypercorn.asyncio import serve
 from werkzeug.utils import secure_filename
 import aiofiles
 import aiofiles.os
@@ -360,3 +362,4 @@ async def export_to_db():
             a.cancel()
         await saveProjectNow(projectID)
 
+asyncio.run(serve(app, Config()))
