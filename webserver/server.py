@@ -34,7 +34,7 @@ async def startup():
 
 @app.route("/icons/<icon_name>")
 async def get_icon(icon_name):
-    return await send_file(os.path.join(os.getcwd(), "img", "icons", icon_name))
+    return await send_file(os.path.join(os.getcwd(), "icons", icon_name))
 
 @app.route("/")
 async def homepage():
