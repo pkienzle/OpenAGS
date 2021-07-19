@@ -363,4 +363,4 @@ serverConfig = Config()
 serverConfig.bind=["0.0.0.0:80"]
 
 #asyncio.run(serve(app, serverConfig))
-app.run(port=80)
+app.run(host='0.0.0.0',port=80)
