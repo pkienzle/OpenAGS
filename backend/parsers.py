@@ -92,30 +92,23 @@ class StandardsFileParser:
                 decayConstant = False
                 decayUnit = reHalfLife.match(h).group(1)
                 halfLifeIndex = i
+        
+        if sensitivity_divisor == None:
+                self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index])) for l in lines]
+        elif sensitivity_divisor:
+            self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), sensitivity = float(l[divisor_index]), unit=unit) for l in lines]
+        else:
+            self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), mass = float(l[divisor_index]), unit=unit) for l in lines]
         if delayed:
             if decayConstant == None:
                 raise ValueError("Delayed analysis, must provide half-life or decay constant in sensitivity file")
             elif decayConstant:
-                if sensitivity_divisor == None:
-                    self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), decayConstant=l[decayConstantIndex], decayUnit = decayUnit) for l in lines]
-                elif sensitivity_divisor:
-                    self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), sensitivity = float(l[divisor_index]), unit=unit, decayConstant=l[decayConstantIndex], decayUnit = decayUnit) for l in lines]
-                else:
-                    self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), mass = float(l[divisor_index]), unit=unit, decayConstant=l[decayConstantIndex], decayUnit = decayUnit) for l in lines]
+                for i in range(len(self.peaks)):
+                    self.peaks[i].set_NAA_params(decayConstant = lines[i][decayConstantIndex])
             else:
-                if sensitivity_divisor == None:
-                    self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), halfLife=l[halfLifeIndex], decayUnit = decayUnit) for l in lines]
-                elif sensitivity_divisor:
-                    self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), sensitivity = float(l[divisor_index]), unit=unit, halfLife=l[halfLifeIndex], decayUnit = decayUnit) for l in lines]
-                else:
-                    self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), mass = float(l[divisor_index]), unit=unit, halfLife=l[halfLifeIndex], decayUnit = decayUnit) for l in lines]
-        else:
-            if sensitivity_divisor == None:
-                self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index])) for l in lines]
-            elif sensitivity_divisor:
-                self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), sensitivity = float(l[divisor_index]), unit=unit) for l in lines]
-            else:
-                self.peaks = [KnownPeak(l[isotope_index],float(l[peak_energy_index]), mass = float(l[divisor_index]), unit=unit) for l in lines]
+                for i in range(len(self.peaks)):
+                    self.peaks[i].set_NAA_params(halfLife = lines[i][halfLifeIndex])
+            
         self.file.close()
         return self.peaks
 

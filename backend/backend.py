@@ -272,11 +272,9 @@ class ROI:
         else:
             self.fitted = False
         for kp in stored_data["knownPeaks"]:
-            if kp["ctr"] >= self.energies[0] and kp["ctr"] <= self.energies[-1]:
-                knownPeakObj = KnownPeak(kp["ele"], kp["ctr"])
-                if "divisor" in kp.keys():
-                    knownPeakObj.set_divisor_output(kp["divisor"], kp["output"])
-                self.knownPeaks.append(knownPeakObj)
+            knownPeakObj = KnownPeak()
+            knownPeakObj.load_from_dict(kp)
+            self.knownPeaks.append(knownPeakObj)
     def export_to_dict(self):
         PIR = [p.export_to_dict() for p in self.peaksInRegion]
         try:

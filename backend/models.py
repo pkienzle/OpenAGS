@@ -28,10 +28,14 @@ class LinearBackground(Background):
     @staticmethod
     def get_entry_fields():
         return ["Point 1 Energy", "Point 2 Energy"]
+
     def get_type(self):
         return "linear"
+
     def get_num_params(self):
         return 2
+    
+    #Getters and Setters
     def get_params(self):
         return [self.slope, self.intercept]
     def set_params(self, newParams):
@@ -48,14 +52,20 @@ class LinearBackground(Background):
         return self.originalVariances
     def set_original_variances(self, variances):
         self.originalVariances = list(variances)
+    
+    #Model Methods
     def get_ydata(self, xdata):
         xdata = np.array(xdata)
         return self.slope * xdata + self.intercept
+    
     def get_ydata_with_params(self,xdata,params):
         xdata = np.array(xdata)
         return params[0] * xdata + params[1]
+    
+    #I/O Methods
     def to_string(self):
         return "Linear: Slope = "+round(float(self.slope), sigfigs=4, notation='scientific')+", Intercept = "+round(float(self.intercept), sigfigs=4, notation='scientific')
+    
     def handle_entry(self, entry):
         x1 = float(entry[0])
         y1 = float(entry[1])
@@ -78,6 +88,8 @@ class GaussianPeak(StandardPeak):
         self.originalVariances = variances
         if variances != []:
             self.set_variances(variances)
+        
+    #Static Methods and Basic Info Functions
     
     @staticmethod
     def guess_params(xdata, ydata):
@@ -89,8 +101,11 @@ class GaussianPeak(StandardPeak):
 
     def get_type(self):
         return "gaussian"
+
     def get_num_params(self):
         return 3
+    
+    #Getters and Setters
     def set_params(self, newParams):
         self.ctr, self.amp, self.wid = newParams
     def get_params(self):
@@ -109,10 +124,22 @@ class GaussianPeak(StandardPeak):
         self.originalVariances = list(variances)
     def get_ctr(self):
         return self.ctr
+    
+    #Model Methods
+
     def get_area(self):
         return self.amp * self.wid * math.sqrt(2*math.pi)
+
     def get_area_stdev(self):
         return self.get_area() * math.sqrt((self.ampVar/self.amp)**2+(self.widVar/self.wid)**2)
+
+    def get_ydata(self, xdata):
+        xdata = np.array(xdata)
+        return self.amp * np.exp( -((xdata - self.ctr)/self.wid)**2)
+
+    def get_ydata_with_params(self,xdata,params):
+        xdata = np.array(xdata)
+        return params[1] * np.exp( -((xdata - params[0])/params[2])**2)
     
     def handle_entry(self, entry, bounds=[0,16000]):
         self.ctr = float(entry[0])
@@ -120,12 +147,7 @@ class GaussianPeak(StandardPeak):
             raise ValueError("Out of Bounds Peak")
         self.amp = float(entry[1])
         self.wid = 1
-    def get_ydata(self, xdata):
-        xdata = np.array(xdata)
-        return self.amp * np.exp( -((xdata - self.ctr)/self.wid)**2)
-    def get_ydata_with_params(self,xdata,params):
-        xdata = np.array(xdata)
-        return params[1] * np.exp( -((xdata - params[0])/params[2])**2)
+
     def to_string(self):
         return "Gaussian: Center " + str(round(float(self.ctr), decimals=1)) + " keV"
 
@@ -139,6 +161,8 @@ class KuboSakaiBoronPeak(BoronPeak):
         self.originalParams = [E0,N0,D,delta]
         self.variances = variances
         self.originalVariances = variances
+
+    #Static methods and basic info methods
 
     @staticmethod
     def guess_params(xdata, ydata):
@@ -163,11 +187,18 @@ class KuboSakaiBoronPeak(BoronPeak):
             newYData[2*startIndex - curIndex] -= toSub
             curIndex += 1
         return newYData
+    
+    @staticmethod
+    def get_entry_fields():
+        return ["Center (keV)", "Max Amplitude"]
 
     def get_type(self):
         return "kubo_sakai"
+
     def get_num_params(self):
         return 4
+    
+    #Getters and Setters
     def get_params(self):
         return [self.E0, self.N0, self.D, self.delta]
     def set_params(self, params):
@@ -186,8 +217,11 @@ class KuboSakaiBoronPeak(BoronPeak):
         self.originalVariances = list(variances)
     def get_ctr(self):
         return self.E0
+    
+    #Model Methods
     def get_area(self):
         return self.N0
+
     def get_area_stdev(self):
         return math.sqrt(self.variances[1])
 
@@ -241,9 +275,8 @@ class KuboSakaiBoronPeak(BoronPeak):
         convRes = convolve(DoG, IR)
 
         return convRes[len(IRx)//2 + numSteps:len(IRx)//2 + numSteps + len(DoGx):10]
-    @staticmethod
-    def get_entry_fields():
-        return ["Center (keV)", "Max Amplitude"]
+
+    #I/O Methods
 
     def handle_entry(self, entry, bounds=[0,16000]):
         self.E0 = float(entry[0])

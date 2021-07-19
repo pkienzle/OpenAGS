@@ -181,8 +181,6 @@ async def saveProjectNow(projectID):
     async with aiofiles.open(os.path.join(os.getcwd(),"uploads",projectID,"state.json"), mode="w") as f:
         await f.seek(0)
         await f.write(json.dumps(activeProjects[projectID]["analysisObject"].export_to_dict()))
-    
-    del activeProjects[projectID]
 
 
 @app.websocket("/projects/<projectID>/ws")
@@ -213,7 +211,7 @@ async def ws(projectID):
                 data = await queue.get()
                 await websocket.send(data)
             except asyncio.CancelledError:
-                activeProjects[projectID]["webSockets"].remove(queue)
+                pass
 
     async def consumer(projectID):
         global activeProjects
@@ -350,7 +348,7 @@ async def ws(projectID):
         activeProjects[projectID]["numUsers"] -= 1
         if activeProjects[projectID]["numUsers"] <= 0:
             print("started save action")
-            activeProjects[projectID]["saveAction"] = asyncio.create_task(saveProject(projectID))
+            asyncio.create_task(saveProject(projectID))
         consumer_task.cancel()
         producer_task.cancel()
 @app.after_serving
@@ -363,4 +361,6 @@ async def export_to_db():
         await saveProjectNow(projectID)
 serverConfig = Config()
 serverConfig.bind=["0.0.0.0:80"]
-asyncio.run(serve(app, serverConfig))
+
+#asyncio.run(serve(app, serverConfig))
+app.run()
