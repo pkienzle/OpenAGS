@@ -94,8 +94,25 @@ class KnownPeak:
     def get_output(self):
         return self.output
     
-    def set_NAA_params(self, halfLife=None, decayConstant=None):
-        pass
+    def set_NAA_params(self, halfLife=None, decayConstant=None, unit="min"):
+        """Set certain parameters for NAA. 
+        
+        This mirrors some functionality in __init__ but helps to avoid a certain 
+        tangled mess of if cases that used to be in parsers.py
+        """
+        if halfLife != None and decayConstant != None:
+            raise TypeError("Please provide no more than 1 of the following: half-life, decay constant")
+        elif halfLife != None:
+            self.decayConstant = math.log(2) / halfLife
+        elif decayConstant != None:
+            self.decayConstant = decayConstant
+        else:
+            raise TypeError("Either half-life or decay constant should be provided")
+
+        if unit in ("s", "sec"):
+            self.decayConstant *= 60
+        elif unit in ("h", "hr"):
+            self.decayConstant /= 60
 
     #Output Methods: Transform the data in the object into something
 

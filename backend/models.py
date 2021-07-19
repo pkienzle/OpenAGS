@@ -6,6 +6,8 @@ import numpy as np
 from scipy.signal import find_peaks_cwt, convolve
 from sigfig import round
 
+#Note: Docstrings for methods used here are in baseClasses.py
+
 class LinearBackground(Background):
     def __init__(self, slope, intercept, variances = [None, None]):
         super().__init__()

@@ -1,5 +1,6 @@
 from models import LinearBackground, GaussianPeak, KuboSakaiBoronPeak
 
+#Default user preferences, to be changed from settings tab
 default_prefs = {
     "peak_type" : "gaussian",
     "boron_peak_type" : "kubo_sakai",
@@ -8,6 +9,8 @@ default_prefs = {
     "roi_width" : 15,
     "B_roi_width" : 20
 }
+
+#String-Object Map: used for UI interactions, makes a lot of things easier & allows for peaks/background types to be interchangeable
 som = {
     "backgrounds":
     {

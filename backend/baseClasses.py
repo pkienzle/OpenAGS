@@ -143,13 +143,23 @@ class Background(Model):
 
 
 class Evaluator(ABC):
+    """A class which takes ROIs containing peak matches and converts those peak matches to readable results."""
     def __init__(self):
         super().__init__()
+    
+    @staticmethod
+    @abstractmethod
+    def get_name():
+        "Returns a name for the Evaluator"
+        pass
 
+    @staticmethod
     @abstractmethod
     def get_headings(self):
+        """Return a list of column headings to be used with the results"""
         pass
     
     @abstractmethod
     def get_results(self):
+        """Return a list of results from each ROI"""
         pass

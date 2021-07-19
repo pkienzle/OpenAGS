@@ -3,6 +3,7 @@ import math
 from sigfig import round
 
 class HBondAnalysis(Evaluator):
+    """Experimental Evaluator for looking at the location of the H Peak relative to some other common ones."""
     def __init__(self, ROIs):
         self.HPeak = None
         self.AlPeak = None
@@ -45,7 +46,8 @@ class HBondAnalysis(Evaluator):
         AlVar = self.AlPeak.get_variances()[0]
         return [((HCtr - AlCtr) - 444.33)*1000, (2*math.sqrt(HVar+AlVar))*1000, "Al-28", HWidth/AlWidth]
 
-class MassSensEval(Evaluator):               
+class MassSensEval(Evaluator): 
+    """Standard Mass/Sensitivity Evaluator"""              
     def __init__(self, ROIs):
         self.ROIs = ROIs
     @staticmethod

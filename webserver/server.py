@@ -17,7 +17,6 @@ from copy import deepcopy
 sys.path.append(os.path.join("..","backend"))
 
 from backend import ActivationAnalysis
-from parsers import CSVWriter, ExcelWriter
 from constants import som
 from evaluators import MassSensEval
 
@@ -142,25 +141,7 @@ async def serve_result(projectID, filename):
                 currentProject = json.loads(contents)
                 analysisObject = ActivationAnalysis()
                 await loop.run_in_executor(None, analysisObject.load_from_dict, currentProject)
-        if filename.split(".")[-1] == "xlsx":
-            headings = [fd["resultHeadings"] for fd in analysisObject.fileData]
-            data = [fd["results"] for fd in analysisObject.fileData]
-            ew = ExcelWriter(projectID, analysisObject.get_title(), analysisObject.fileList, headings, data)
-            ew.write()
-        elif filename[-21:] == "_Analysis_Results.csv":
-            origFilename = filename.replace("_Analysis_Results.csv","")
-            for i in range(len(analysisObject.fileList)):
-                if os.path.split(analysisObject.fileList[i])[1].split('.')[0] == origFilename:
-                    cw = CSVWriter(projectID, filename, analysisObject.fileData[i]["resultHeadings"][0], analysisObject.fileData[i]["results"])
-                    cw.write()
-                    break
-        else:
-            origFilename = filename.replace("_xy.csv","")
-            for i in range(len(analysisObject.fileList)):
-                if os.path.split(analysisObject.fileList[i])[1].split('.')[0] == origFilename:
-                    cw = CSVWriter(projectID, filename, ["Energy (keV)", "Counts Per Second"], zip(analysisObject.fileData[i]["energies"], analysisObject.fileData[i]["cps"]))
-                    cw.write()
-                    break
+        analysisObject.write_results_file(projectID, filename)
         async with aiofiles.open(os.path.join(os.getcwd(),"results",projectID, filename), mode="rb") as f:
             c = await f.read()
             return c, 200, {'Content-Disposition' : 'attachment; filename="'+filename+'"'}
