@@ -5,9 +5,11 @@ ws.onmessage = function (event) {
     var data = JSON.parse(event.data);
     switch(data.type){
         case "titleUpdate":
+            //just update the title
             document.getElementById("cdTitle").value = data.newTitle;
             break;
         case "entryReprResponse":
+            //add an entry to the current fit section
             if(data.class == "peaks"){
                 var peaksList = document.getElementById("fittedPeaksList-"+data.index.toString());
                 var output = data.output;
@@ -24,8 +26,10 @@ ws.onmessage = function (event) {
             }
             break;
         case "ROIUpdate":
+            //update absolutely everything, new fit
             var i = data.index;
 
+            //reset csome stuff
             window.newPeaks[i] = {};
             window.newBackgrounds[i] = null;
             window.originalEnergyBounds[i] = data.ROIRange;
@@ -37,10 +41,12 @@ ws.onmessage = function (event) {
                 mode : "markers",
                 name : "Data"
             }
+            //if we have fitted a previously unfitted region, remove it from unfitetd regions list
             if(data.fitted && window.unfittedRegions.indexOf(data.index) !== -1){
                 window.unfittedRegions.splice(window.unfittedRegions.indexOf(data.index), 1);
             }
 
+            //if we have messed up a previously fitted region, add it to unfitted list and show an error
             if(!data.fitted){
                 if(window.unfittedRegions.indexOf(data.index) === -1){
                     window.unfittedRegions.push(data.index);
@@ -49,15 +55,19 @@ ws.onmessage = function (event) {
                 break;
             }
 
+            //set new background
             var bgList = document.getElementById("fittedBgList-"+data.index.toString());
             bgList.innerHTML = "<li class='list-group-item compact' id=\""+ data.bgString +"\"><p class = 'bg-label'>"+ data.bgString +"</p>";
             
+            //set new peaks
             var peaksList = document.getElementById("fittedPeaksList-"+data.index.toString());
             peaksList.innerHTML = "";
             for(j=0;j<data.peakStrings.length;j++){
                 var output = data.peakStrings[j];
                 peaksList.innerHTML = peaksList.innerHTML + "<li class='list-group-item compact' id=\""+output+"\"><p class = 'peak-label'>"+output+"</p><img class='rmv-btn' src='/icons/file-x.svg' onclick='remove_peak_from_list(\""+ output +"\")'/></li>";
             }
+
+            //set new matches
             var knownPeaks = document.getElementById("userPeakMatches-"+i.toString()).getElementsByTagName("p");
             var matchSelects = document.getElementById("userPeakMatches-"+i.toString()).getElementsByClassName("peak-match-select");
             for(j=0;j<matchSelects.length;j++){
@@ -82,6 +92,7 @@ ws.onmessage = function (event) {
 
             var plot = document.getElementById("ROI-"+i.toString());
 
+            //add other traces if the data is fitted, and update the plot
             if(data.fitted){
                 var fitTrace = {
                     x : data.curveX,
@@ -117,22 +128,31 @@ ws.onmessage = function (event) {
             }
             break;
         case "matchUpdate":
+            //update one of the matches
             document.getElementById("userPeakMatches-"+data.ROIIndex.toString()).getElementsByTagName('select')[data.matchIndex.toString()].value = data.newValue.toString();
             break;
         case "isotopeUpdateResponse":
+            //if isotopes are updated, the page must be refreshed
             ws.close();       
-            showRefreshModal();
+            showModal("refreshPageModal");
             break;
         case "resultsGenerated":
+            //if results are generated, you usualyl want to view them
             ws.close();
-            showRedirectModal();
+            showModal("redirectModal");
             break;
         case "error":
+            //if there's a backend error, show it in the frontend
             showErrorMessage(data.text);
             break;
     }
 
 };
+
+/**
+ * Sets the peak entry options below the "Select Peak" box in the ith ROI window. uses window.entryFields to see field names and count.
+ * @param {Number} i 
+ */
 function updatePeakEntry(i){
     var peakType = document.getElementById("peakSelect-"+i.toString()).value;
     var peaksList = document.getElementById("userPeakEntry-"+i.toString());
@@ -143,6 +163,10 @@ function updatePeakEntry(i){
     peaksList.innerHTML = newInnerHTML;
 };
 
+/**
+ * Transmits an added peak through the WebSocket for ROI #i
+ * @param {Number} i 
+ */
 function add_peak_to_list(i){
     var peakType = document.getElementById("peakSelect-"+i.toString()).value;
     var peaksList = document.getElementById("userPeakEntry-"+i.toString());
@@ -161,10 +185,16 @@ function add_peak_to_list(i){
     }
     ws.send(JSON.stringify(wsSendObj));
 };
+
+//TODO: Potentially unnecessary, look at removing
 function remove_peak_from_list(peakID){
     document.getElementById(peakID).remove();
 }
 
+/**
+ * Transmits a user-selected background type to the ebsocket for ROI #i
+ * @param {Number} i 
+ */
 function editBackground(i){
     var bgType = document.getElementById("backgroundSelect-"+i.toString()).value;
     var wsSendObj = {
@@ -177,11 +207,19 @@ function editBackground(i){
     ws.send(JSON.stringify(wsSendObj));
 }
 
+/**
+ * Resets the ROI range for ROI #i in case a user has entered an invalid value
+ * @param {Number} i 
+ */
 function resetEnergyBounds(i){
     var entryList = document.getElementById("editRangeList-"+i.toString()).getElementsByTagName("input");
     entryList[0].value = window.originalEnergyBounds[i][0].toString();
     entryList[1].value = window.originalEnergyBounds[i][1].toString();
 }
+/**
+ * Sends the WebSocket request to renaalyze ROI #i
+ * @param {Number} i 
+ */
 
 function reanalyze(i){
     var peaksList = document.getElementById("fittedPeaksList-"+i.toString());
@@ -191,7 +229,7 @@ function reanalyze(i){
     var newPeaksToAdd = [];
     for(j=0;j<peaks.length;j++){
         peak = peaks[j].innerText;
-        if(window.newPeaks[i].hasOwnProperty(peak)){
+        if(window.newPeaks[i].hasOwnProperty(peak)){//check if this peak was already added last time
             newPeaksToAdd.push(window.newPeaks[i][peak]);
         }
         else{
@@ -201,14 +239,19 @@ function reanalyze(i){
     var bgToAdd = window.newBackgrounds[i];
     
     outputObject = {"type" : "ROIUpdate","index":i};
+
+    //add new range to the object, if applicable 
     var entryList = document.getElementById("editRangeList-"+i.toString()).getElementsByTagName("input");
     if(entryList[0].value != window.originalEnergyBounds[i][0] || entryList[1].value != window.originalEnergyBounds[i][1]){
-        try {
-            outputObject["newRange"] = [parseFloat(entryList[0].value), parseFloat(entryList[1].value)];
-        } catch (error) {
+        var minEnergy = parseFloat(entryList[0].value);
+        var maxEnergy = parseFloat(entryList[1].value);
+        if(isNaN(minEnergy) || isNaN(maxEnergy)){
             return showErrorMessage("Please enter decimal numbers for the range.")
         }
+        outputObject["newRange"] = [minEnergy, maxEnergy];
     }
+
+    //add peaks to keep, add, plus the background to the request
     if(existingPeaksToKeep !== []){
         outputObject["existingPeaks"] = existingPeaksToKeep;
     }
@@ -221,11 +264,15 @@ function reanalyze(i){
     console.log(JSON.stringify(outputObject));
     ws.send(JSON.stringify(outputObject));
 }
-//websocket stuff
+
 function updateTitle(){
     var newTitle = document.getElementById("cdTitle").value;
     ws.send('{"type":"titleUpdate","newTitle":"'+newTitle+'"}');
 }
+
+/**
+ * Submits the user's matches of known peaks and peaks in data, which will then bring up the results screen.
+ */
 function submitMatches(){
     var peakPairs = [];
     for(var i=0;i<numberPages;i++){
@@ -245,6 +292,12 @@ function submitMatches(){
     }
     ws.send(JSON.stringify(outputObj));
 }
+
+/**
+ * Sends a WebSocket request saying that the user has updated the jth match of the ith ROI, and sends the new value.
+ * @param {Number} i 
+ * @param {Number} j 
+ */
 function sendMatchUpdate(i,j){
     var newValue = document.getElementById("userPeakMatches-"+i.toString()).getElementsByTagName('select')[j.toString()].value;
     var outputObj = {

@@ -129,6 +129,8 @@ class KnownPeak:
 
         if self.delayed:
             outDict["decayConstant"] = self.decayConstant
+        
+        return outDict
 
     def to_string(self):
         """Returns a string representation of this peak as its element name concatenated with its pek centroid."""

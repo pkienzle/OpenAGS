@@ -1,3 +1,4 @@
+//New Buttons for plotly plots
 var linearScaleIcon = {
     'name' : "linear-scale",
     'svg' : '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="isolation:isolate" viewBox="0 0 100 100" width="100pt" height="100pt"><defs><clipPath id="_clipPath_PryGnnTZIQ4lIJ2Dby2iX67e7hrcObL8"><rect width="100" height="100"/></clipPath></defs><g clip-path="url(#_clipPath_PryGnnTZIQ4lIJ2Dby2iX67e7hrcObL8)"><line x1="9" y1="8" x2="8" y2="92" vector-effect="non-scaling-stroke" stroke-width="3" stroke="rgb(0,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/><line x1="8" y1="92" x2="92" y2="92" vector-effect="non-scaling-stroke" stroke-width="3" stroke="rgb(0,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/><line x1="11" y1="89" x2="92" y2="7" vector-effect="non-scaling-stroke" stroke-width="2" stroke="rgb(255,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/></g></svg>'
@@ -10,21 +11,14 @@ var PIRIcon = {
     'name' : 'peaks-in-region',
     'svg' : '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="isolation:isolate" viewBox="0 0 100 100" width="100pt" height="100pt"><defs><clipPath id="_clipPath_kReHyCC0NX5wrRytD0ofjjw4WyG0gtOx"><rect width="100" height="100"/></clipPath></defs><g clip-path="url(#_clipPath_kReHyCC0NX5wrRytD0ofjjw4WyG0gtOx)"><path d=" M 2 98 L 12 95 L 18 90 L 22 83 L 25 73 L 28 62 L 32 55 L 37 49 L 42 46 L 45 46 L 50 49 L 54 55 L 56 62 L 58 73 L 61 83 L 67 90 L 74 95 L 82 98 L 97 98" fill="none" vector-effect="non-scaling-stroke" stroke-width="2" stroke="rgb(0,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/><line x1="13" y1="5" x2="13" y2="98" vector-effect="non-scaling-stroke" stroke-width="1" stroke="rgb(255,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/><line x1="45" y1="5" x2="46" y2="98" vector-effect="non-scaling-stroke" stroke-width="1" stroke="rgb(255,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/><line x1="94" y1="5" x2="95" y2="98" vector-effect="non-scaling-stroke" stroke-width="1" stroke="rgb(255,0,0)" stroke-linejoin="miter" stroke-linecap="square" stroke-miterlimit="3"/></g></svg>'
 }
+
+//button implementations
 var universalModeButtons = [
     {
         "name" : "Linear Scale",
         "icon" : linearScaleIcon,
-        click : function(gd){
+        click : function(gd){//set scale to linear, keep all other properties
             if(gd.data.length === 2){
-                var newLayout = {
-                    yaxis: {
-                        type: 'linear',
-                        title: "Counts Per Second",
-                        autorange: true
-                    }
-                }
-            }
-            else{
                 var newLayout = {
                     yaxis: {
                         type: 'linear',
@@ -39,13 +33,22 @@ var universalModeButtons = [
                     }
                 }
             }
+            else{
+                var newLayout = {
+                    yaxis: {
+                        type: 'linear',
+                        title: "Counts Per Second",
+                        autorange: true
+                    }
+                }
+            }
             Plotly.relayout(gd,newLayout)
         }
     },
     {
         "name" : "Log Scale",
         "icon" : logScaleIcon,
-        click : function(gd){
+        click : function(gd){//set scale to log, keep other properies
             if(gd.data.length === 2){
                 var newLayout = {
                     yaxis: {
@@ -120,6 +123,7 @@ var editModeButton = {
     }
 }
 
+//Show Peaks In Region should only appear when viewing ROIs
 var addr = window.location.href.split("/")
 if(addr[addr.length - 1] == "edit"){
     universalModeButtons.push(editModeButton);
@@ -128,8 +132,14 @@ if(addr[addr.length - 1] == "edit"){
 var universalPlotConfig = {
     responsive : true,
     modeBarButtonsToAdd : universalModeButtons,
-    modeBarButtonsToRemove : ['select2d','lasso2d','zoomIn2d', 'zoomOut2d']
+    modeBarButtonsToRemove : ['select2d','lasso2d','zoomIn2d', 'zoomOut2d'] //these don't do much for our application. Select and Lasso don't matter at all, and zoom in/out usually goes too far
 };
+
+/**
+ * Find the index of the element in arr which is closest to target
+ * @param {Array} arr 
+ * @param {Number} target 
+ */
 function findClosest(arr, target)
 {
     let n = arr.length;
