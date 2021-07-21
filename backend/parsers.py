@@ -3,6 +3,8 @@ from util import KnownPeak
 import re
 import numpy as np
 from openpyxl import Workbook
+import os
+
 class SpectrumParser:
     """Parser for all Spectrum file formats"""
     def __init__(self, fname):
@@ -150,7 +152,7 @@ class CSVWriter:
 class ExcelWriter:
     def __init__(self, projectID, projectTitle, allFilenames, headings, data):
         """Writes results from a project into an Excel File."""
-        self.fname = "./results/" + projectID + "/" + projectTitle.replace(" ","_").replace("\\","") + ".xlsx"
+        self.fname = "./results/" + projectID + "/" + projectTitle.replace(" ","_").replace("\\","").replace("/","") + ".xlsx"
         self.allFilenames = allFilenames
         self.headings = headings
         self.data = data
@@ -166,14 +168,14 @@ class ExcelWriter:
         rowCount = 1
         for i in range(len(self.allFilenames)):
             for j in range(len(self.data[i][0])): #its data[i][0] and not data[i] because this writer only cares about 1 evaluator, the Mass/Sens one used in the program.
-                _ = ws.cell(row=rowCount+1, column=1, value=self.allFilenames[i].split("\\")[-1])
+                _ = ws.cell(row=rowCount+1, column=1, value=os.path.split(self.allFilenames[i])[1])
                 for k in range(len(self.data[i][0][j])):
                     _ = ws.cell(row=rowCount+1, column=k+2, value=self.data[i][0][j][k])
                 rowCount += 1
 
         #remaining sheets
         for i in range(len(self.allFilenames)):
-            newWs = wb.create_sheet(self.allFilenames[i].split("\\")[-1][:31]) #sheet name can't be longer than 31 chars
+            newWs = wb.create_sheet(os.path.split(self.allFilenames[i])[1][:31]) #sheet name can't be longer than 31 chars
             for l in range(len(self.headings[0][0])):
                 _ = newWs.cell(row=1, column=l+1, value=self.headings[0][0][l])
             for j in range(len(self.data[i][0])): #its data[i][0] and not data[i] because this writer only cares about 1 evaluator, the Mass/Sens one used in the program.
