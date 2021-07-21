@@ -12,6 +12,7 @@ import json
 import time
 import sys
 import functools
+import shutil
 from copy import deepcopy
 
 sys.path.append(os.path.join("..","backend"))
@@ -158,6 +159,12 @@ async def project(projectID, action):
         return await(render_template("view.html", analysisObject=analysisObject, projectID=projectID, som=som, pathSplit=os.path.split))
     elif action == "results":
         return await(render_template("results.html", analysisObject=analysisObject, projectID=projectID, pathSplit=os.path.split))
+    elif action == "delete":
+        shutil.rmtree(os.path.join(os.getcwd(), "results", projectID))
+        shutil.rmtree(os.path.join(os.getcwd(), "uploads", projectID))
+        activeProjects[projectID]["saveAction"].cancel()
+        del activeProjects[projectID]
+        return redirect("/create")
     else: 
         return ""
 
@@ -354,7 +361,7 @@ async def ws(projectID):
                 await saveProjectNow(projectID)
                 
                 for f in os.listdir(os.path.join(os.getcwd(), "results", projectID)):
-                    await aiofiles.os.remove(f)
+                    os.remove(os.path.join(os.getcwd(), "results", projectID, f))
 
                 #Broadcast simple message which will redirect people to the results screen
                 outputData = json.dumps({"type" : "resultsGenerated"})
@@ -375,7 +382,7 @@ async def ws(projectID):
         activeProjects[projectID]["numUsers"] -= 1
         if activeProjects[projectID]["numUsers"] <= 0: # save project in 1 min if no one reconnects
             print("started save action")
-            asyncio.create_task(saveProject(projectID))
+            activeProjects[projectID]["saveAction"] = asyncio.create_task(saveProject(projectID))
         consumer_task.cancel()
         producer_task.cancel()
 @app.after_serving
