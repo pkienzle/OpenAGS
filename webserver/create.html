@@ -62,7 +62,7 @@
     <label for="uploadedFilesList" class="mt">Upload Spectrum Files</label>
     <ul class="list-group" id="uploadedFilesList"></ul>
     <input type="file" class="form-control w-25" id="filesUpload" onchange="updateFileList(this)" multiple/>
-    <label for="standardsFileUpload">Upload Standards File</label>
+    <label for="standardsFileUpload">Upload Sensitivity Table</label>
     <input type="file" class="form-control w-25" id="standardsFileUpload"/>
     <button type="button" id="create_btn" class="btn btn-secondary mt" onclick="uploadFiles()">Create</button>
     <div id="progress_wrapper" class="d-none mt">
@@ -127,7 +127,7 @@
             if(document.getElementById("standardsFileUpload").files[0] == null){
                 if(!document.getElementById("PGAACheck").checked){
                     reset();
-                    return showErrorMessage("NAA Analyses must provide standards files.");
+                    return showErrorMessage("NAA Analyses must provide sensitivity tables.");
                 }
                 data.append("standardsFile", "");
             }
