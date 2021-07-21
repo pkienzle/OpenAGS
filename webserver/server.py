@@ -160,8 +160,12 @@ async def project(projectID, action):
     elif action == "results":
         return await(render_template("results.html", analysisObject=analysisObject, projectID=projectID, pathSplit=os.path.split))
     elif action == "delete":
-        shutil.rmtree(os.path.join(os.getcwd(), "results", projectID))
-        shutil.rmtree(os.path.join(os.getcwd(), "uploads", projectID))
+        p1 = os.path.join(os.getcwd(), "results", projectID)
+        if os.path.exists(p1):
+            shutil.rmtree(p1)
+        p2 = os.path.join(os.getcwd(), "uploads", projectID)
+        if os.path.exists(p2):
+            shutil.rmtree(p2)
         activeProjects[projectID]["saveAction"].cancel()
         del activeProjects[projectID]
         return redirect("/create")
@@ -398,4 +402,4 @@ serverConfig = Config()
 serverConfig.bind=["0.0.0.0:80"]
 
 #asyncio.run(serve(app, serverConfig))
-app.run(host='127.0.0.1',port=8000)
+app.run(host='0.0.0.0',port=80)
