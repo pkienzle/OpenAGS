@@ -1,0 +1,8 @@
+old/
+/webserver/img/icons/*
+spectra/
+Demo/
+/webserver/uploads
+/webserver/results
+__pycache__/
+*.json
