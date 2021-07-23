@@ -1,0 +1,7 @@
+numpy
+scipy
+quart
+werkzeug
+aiofiles
+sigfig
+openpyxl
